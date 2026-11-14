@@ -147,7 +147,6 @@ struct MenuContent: View {
             case .now: nowTab
             case .stats: statsTab
             }
-            quitArea
         }
         .padding(16)
         .frame(width: 340)
@@ -155,38 +154,35 @@ struct MenuContent: View {
 
     // MARK: Выход
 
-    /// Выход: красная строка на всю ширину внизу панели.
-    private var quitArea: some View {
-        Button { NSApp.terminate(nil) } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "power").font(.system(size: 15, weight: .semibold))
-                Text(t("Quit Pinok")).font(.callout.weight(.semibold))
-                Spacer()
-            }
-            .foregroundStyle(.red)
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.red.opacity(0.08)))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut("q")
-    }
-
     // MARK: Шапка
 
+    /// Шапка в одну строку: иконка · вкладки · выход · настройки. Вкладки не наезжают на кнопки даже по-русски.
     private var header: some View {
-        ZStack {
-            HStack(spacing: 2) {
-                segment(t("Now"), .now)
-                segment(t("Stats"), .stats)
-            }
-            .padding(3)
-            .background(Capsule().fill(Color.primary.opacity(0.06)))
-
-            HStack {
+        HStack(spacing: 8) {
                 AppIcon(symbol: "arrow.up", colors: [Color(red: 1.00, green: 0.45, blue: 0.58), Color(red: 0.62, green: 0.40, blue: 0.95)], size: 24)
                     .accessibilityHidden(true)
-                Spacer()
+                Spacer(minLength: 0)
+                HStack(spacing: 2) {
+                    segment(t("Now"), .now)
+                    segment(t("Stats"), .stats)
+                }
+                .padding(3)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                .fixedSize()
+                Spacer(minLength: 0)
+                // Выход — красная кнопка рядом с шестерёнкой.
+                Button { NSApp.terminate(nil) } label: {
+                    Image(systemName: "power")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.red)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(Color.red.opacity(0.12)))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(t("Quit Pinok"))
+                .accessibilityLabel(t("Quit Pinok"))
+                .keyboardShortcut("q")
                 Button {
                     closePanel()
                     NSApp.activate()
@@ -202,7 +198,6 @@ struct MenuContent: View {
                 .help(t("Settings…"))
                 .accessibilityLabel(t("Settings…"))
                 .keyboardShortcut(",")
-            }
         }
     }
 
@@ -210,7 +205,7 @@ struct MenuContent: View {
         Button { tab = value } label: {
             Text(title)
                 .font(.callout.weight(.semibold))
-                .padding(.horizontal, 16).padding(.vertical, 5)
+                .padding(.horizontal, 14).padding(.vertical, 5)
                 .background(Capsule().fill(tab == value ? Color.primary.opacity(0.12) : .clear))
                 .contentShape(Capsule())
         }
