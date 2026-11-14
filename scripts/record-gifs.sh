@@ -20,9 +20,7 @@ record() {
     echo "✅ docs/$kind.gif"
 }
 
-record onboarding 7
+# Только те, что есть в README. Другие сцены: onboarding, tongue, set.
 record posture 5
-record tongue 5
-record set 5
 record break 7
 rm -rf "$TMP"

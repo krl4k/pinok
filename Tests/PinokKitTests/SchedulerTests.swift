@@ -333,27 +333,6 @@ struct SchedulerTests {
         #expect(h.presenter.breaks.count == 2)
     }
 
-    @Test func skipNextBreakMovesByOneInterval() {
-        let h = SchedulerHarness()
-        h.settings.breakEnabled = true
-        h.reset()
-        h.clock.now = h.at(1000)
-        h.scheduler.skipNextBreak()
-        #expect(h.scheduler.nextBreak == h.at(7200))
-        h.tick(at: 3600)
-        #expect(h.presenter.breaks.isEmpty)
-        h.tick(at: 7200)
-        #expect(h.presenter.breaks.count == 1)
-    }
-
-    @Test func skipNextBreakDoesNothingWhenBreaksAreOff() {
-        let h = SchedulerHarness()
-        h.reset()
-        #expect(h.scheduler.nextBreak == nil)
-        h.scheduler.skipNextBreak()
-        #expect(h.scheduler.nextBreak == nil)
-    }
-
     @Test func snoozeBreakAllowsANewWarning() {
         let h = SchedulerHarness()
         h.settings.breakEnabled = true
@@ -850,8 +829,6 @@ struct SchedulerTests {
         h.tick(at: 3600 + 300)
         h.presenter.breaks[1].completion(.skipped)
         #expect(h.stats.skipped == 1)
-        h.scheduler.skipNextBreak()
-        #expect(h.stats.skipped == 2)
         #expect(h.stats.breaks == 0)
     }
 

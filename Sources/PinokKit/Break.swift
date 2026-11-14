@@ -21,12 +21,9 @@ enum BreakTips {
         "Pull your shoulders back for 5 seconds. Do it 5 times.",
     ]
 
-    /// Случайное сообщение из списка пользователя (или стандартного, если список пуст).
+    /// Случайная подсказка для перерыва.
     @MainActor
-    static func random() -> String {
-        let mine = AppSettings.shared.breakMessages.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        return t((mine.isEmpty ? defaults : mine).randomElement()!)
-    }
+    static func random() -> String { t(defaults.randomElement() ?? defaults[0]) }
 }
 
 // MARK: - Фон блокера

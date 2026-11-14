@@ -95,7 +95,6 @@ final class AppSettings {
     var breakBackground: BreakBackground { didSet { d.set(breakBackground.rawValue, forKey: "breakBackground") } }
     var breakGradient: BreakGradient { didSet { d.set(breakGradient.rawValue, forKey: "breakGradient") } }
     var breakImagePath: String { didSet { d.set(breakImagePath, forKey: "breakImagePath") } }
-    var breakMessages: [String] { didSet { d.set(breakMessages, forKey: "breakMessages") } }
     /// Какие упражнения могут выпасть на перерыве.
     var breakExercises: [BreakExercise] {
         didSet { d.set(breakExercises.map(\.rawValue), forKey: "breakExercises") }
@@ -125,7 +124,6 @@ final class AppSettings {
             "breakBackground": BreakBackground.blur.rawValue,
             "breakGradient": BreakGradient.sunset.rawValue,
             "breakImagePath": "",
-            "breakMessages": BreakTips.defaults,
             "breakExercises": BreakExercise.defaults.map(\.rawValue),
             "breakExerciseCount": 2,
             "breakRequireList": true,
@@ -186,7 +184,6 @@ final class AppSettings {
         breakBackground = BreakBackground(rawValue: d.string(forKey: "breakBackground") ?? "") ?? .blur
         breakGradient = BreakGradient(rawValue: d.string(forKey: "breakGradient") ?? "") ?? .sunset
         breakImagePath = d.string(forKey: "breakImagePath") ?? ""
-        breakMessages = d.stringArray(forKey: "breakMessages") ?? BreakTips.defaults
         breakExercises = (d.stringArray(forKey: "breakExercises") ?? []).compactMap(BreakExercise.init(rawValue:))
         breakExerciseCount = d.integer(forKey: "breakExerciseCount")
         breakRequireList = d.bool(forKey: "breakRequireList")

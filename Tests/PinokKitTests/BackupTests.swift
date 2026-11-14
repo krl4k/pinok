@@ -18,7 +18,6 @@ struct BackupTests {
         a.breakDuration = 3
         a.arrowColor = .mint
         a.breakExercises = [.squats]
-        a.breakMessages = ["Stand up"]
         var r = Reminder(title: "Mine", caption: "Do it", animation: .bell, interval: 15, sound: "Pop")
         r.enabled = false
         a.reminders = [r]
@@ -32,7 +31,6 @@ struct BackupTests {
         #expect(b.breakDuration == 3)
         #expect(b.arrowColor == .mint)
         #expect(b.breakExercises == [.squats])
-        #expect(b.breakMessages == ["Stand up"])
         #expect(b.reminders == [r])
         #expect(b.sets.map(\.name) == ["Desk"])
         #expect(b.sets.first?.reminderIDs == [r.id])

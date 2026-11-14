@@ -43,7 +43,6 @@ struct AppSettingsTests {
         #expect(s.breakBackground == .blur)
         #expect(s.breakGradient == .sunset)
         #expect(s.breakImagePath == "")
-        #expect(s.breakMessages == BreakTips.defaults)
         #expect(s.sets.isEmpty)
     }
 
@@ -161,18 +160,6 @@ struct AppSettingsTests {
         #expect(s.breakGradient == .sunset)
     }
 
-    @Test func breakMessagesPersist() {
-        let d = TestSupport.freshDefaults()
-        make(d).breakMessages = ["One", "Two"]
-        #expect(make(d).breakMessages == ["One", "Two"])
-    }
-
-    @Test func emptyBreakMessagesPersist() {
-        let d = TestSupport.freshDefaults()
-        make(d).breakMessages = []
-        #expect(make(d).breakMessages == [])
-    }
-
     @Test func remindersPersist() {
         let d = TestSupport.freshDefaults()
         let s = make(d)
@@ -253,7 +240,6 @@ struct AppSettingsTests {
         s.breakBackground = .image
         s.breakGradient = .ocean
         s.breakImagePath = "x"
-        s.breakMessages = ["a"]
         s.language = .en
         #expect(kinds.isEmpty)
     }

@@ -197,8 +197,8 @@ struct LocalizationTests {
         L10n.isRussian = true
         #expect(t("%ld min", 5) == "5 мин")
         #expect(t("Break in %@", "0:45") == "Перерыв через 0:45")
-        #expect(t("%@ — in %@", "Вода", "5:00") == "Вода — через 5:00")
-        #expect(t("Today: posture %ld · tongue %ld · breaks %ld", 1, 2, 3) == "Сегодня: осанка 1 · язык 2 · перерывы 3")
+        #expect(t("%ld h %ld min", 1, 30) == "1 ч 30 мин")
+        #expect(t("+%ld min", 5) == "+5 мин")
         #expect(t("Unknown %ld thing", 7) == "Unknown 7 thing")
     }
 

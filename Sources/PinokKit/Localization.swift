@@ -29,7 +29,7 @@ enum L10n {
 
     /// Английская строка → русская. Ключ — сама английская строка.
     static let ru: [String: String] = [
-        // Меню в трее
+        "System": "Как в системе",
         // Файл настроек
         "Settings file": "Файл настроек",
         "Export…": "Экспорт…",
@@ -61,30 +61,9 @@ enum L10n {
         "Breaks are off": "Перерывы выключены",
         "Pinok is on": "Pinok работает",
         "Skipped": "Пропущено",
-        "Posture — off": "Осанка — выкл.",
-        "Posture — paused": "Осанка — на паузе",
-        "Posture — in %@": "Осанка — через %@",
-        "Tongue — off": "Язык — выкл.",
-        "Tongue — paused": "Язык — на паузе",
-        "Tongue — in %@": "Язык — через %@",
-        "Break — off": "Перерыв — выкл.",
-        "Break — in progress": "Перерыв — идёт сейчас",
-        "Break — paused": "Перерыв — на паузе",
-        "Break — in %@": "Перерыв — через %@",
-        "Paused until %@": "На паузе до %@",
-        "Paused — %@": "Пауза — %@",
         "Resume": "Продолжить",
         "You are away. Timers are waiting.": "Тебя нет за компьютером. Таймеры ждут.",
-        "Posture reminder now": "Напомнить про осанку",
-        "Tongue reminder now": "Напомнить про язык",
-        "Start break now": "Начать перерыв",
-        "Skip next break": "Пропустить следующий перерыв",
         "Pause": "Пауза",
-        "30 minutes": "30 минут",
-        "1 hour": "1 час",
-        "2 hours": "2 часа",
-        "Until tomorrow": "До завтра",
-        "Today: posture %ld · tongue %ld · breaks %ld": "Сегодня: осанка %ld · язык %ld · перерывы %ld",
         "Settings…": "Настройки…",
         "Quit Pinok": "Выйти из Pinok",
         "<1m": "<1м",
@@ -96,7 +75,6 @@ enum L10n {
         // Оверлеи
         "Sit up straight": "Выпрямись",
         "Tongue up": "Язык к нёбу",
-        "Time to stretch": "Время размяться",
         "Skip": "Пропустить",
         "+%ld min": "+%ld мин",
         "Preview · Esc to close": "Предпросмотр · Esc — закрыть",
@@ -119,7 +97,6 @@ enum L10n {
         "White": "Белая", "Mint": "Мятная", "Blue": "Голубая", "Orange": "Оранжевая",
         "Glass": "Стекло", "Line": "Линия",
         "Blur screen": "Размытие", "Wallpaper": "Обои", "Gradient": "Градиент", "Image": "Картинка",
-        "System": "Как в системе",
 
         // Настройки — разделы
         "General": "Общие",
@@ -127,76 +104,45 @@ enum L10n {
         "Tongue": "Язык",
         "Breaks": "Перерывы",
         "Stats": "Статистика",
-        "Appearance": "Вид",
         "Sounds": "Звуки",
         "Reminders": "Напоминания",
-        "Behavior": "Поведение",
 
         // Общие
         "Language": "Язык",
         "Launch at login": "Запускать при входе в систему",
         "Show minutes to the break in the menu bar": "Минуты до перерыва в строке меню",
-        "Time left until the next reminder": "Сколько осталось до ближайшего напоминания",
         "Smart pause": "Умная пауза",
         "Pause when I am away for": "Пауза, если меня нет",
-        "Timers restart when you come back": "Когда вернёшься — отсчёт начнётся заново",
         "%ld min": "%ld мин",
         "Pause during calls": "Пауза во время звонков",
-        "When the microphone or camera is in use": "Когда занят микрофон или камера",
         "Pause during full-screen video": "Пауза при видео на весь экран",
-        "When a video plays in full screen": "Когда видео открыто на весь экран",
         "Wait until I stop typing": "Ждать, пока я допечатаю",
-        "Reminders wait a few seconds until you stop typing": "Напоминания ждут пару секунд, пока ты не допечатаешь",
-        "Sleep and screen lock": "Сон и блокировка экрана",
-        "Timers reset automatically": "Таймеры сбрасываются автоматически",
 
         // Осанка / язык
         "Preview": "Показать",
         "An arrow moves up the screen. It reminds you to sit up straight.": "Стрелка поднимается по экрану. Это сигнал выпрямиться.",
-        "Posture reminders": "Напоминать про осанку",
         "Every": "Каждые",
-        "Show the text “Sit up straight”": "Подпись «Выпрямись»",
-        "Change the arrow and colors in Appearance. Change sounds in Sounds.": "Стрелку и цвета меняй в разделе «Вид». Звуки — в «Звуках».",
         "The tongue moves up to the roof of the mouth. Keep it there all day.": "Язык поднимается к нёбу. Держи его там весь день.",
-        "Tongue reminders": "Напоминать держать язык у нёба",
-        "Show the text “Tongue up”": "Подпись «Язык к нёбу»",
 
         // Перерывы
         "The screen locks for a few minutes. Stand up, stretch and rest your eyes.": "Экран блокируется на пару минут. Встань, разомнись, дай глазам отдохнуть.",
         "Lock the screen for breaks": "Блокировать экран для перерыва",
         "Duration": "Длительность",
-        "Warning": "Предупреждение",
-        "Warn me before a break": "Предупреждать перед перерывом",
-        "You can delay the break or start it now": "Можно отложить перерыв или начать сразу",
         "Warn me": "Предупредить за",
         "%ld sec before": "%ld сек",
         "%ld min before": "%ld мин",
-        "Countdown next to the cursor": "Отсчёт рядом с курсором",
-        "Shows the last 10 seconds before a break": "Последние 10 секунд перед перерывом",
         "Background": "Фон",
-        "Messages": "Сообщения",
-        "Each break shows one random message. The preview lasts 10 seconds. Press Esc to close it.": "На каждом перерыве показывается одно случайное сообщение. Предпросмотр длится 10 секунд. Esc — закрыть.",
         "No image selected": "Картинка не выбрана",
         "Choose…": "Выбрать…",
         "Choose a picture for breaks": "Выбери картинку для перерывов",
         "Remove": "Удалить",
-        "Add your own message…": "Добавь своё сообщение…",
         "Add": "Добавить",
-        "Reset to defaults": "Вернуть стандартные",
 
         // Статистика
-        "Today": "Сегодня",
         "Counts all reminders and breaks. Previews are not counted.":
             "Считаются напоминания по расписанию и из меню. Предпросмотр не учитывается.",
 
         // Внешний вид
-        "Arrow style": "Стиль стрелки",
-        "Color": "Цвет",
-        "Effect": "Эффект",
-        "Darken screen": "Затемнение",
-        "Arrow thickness": "Толщина стрелки",
-        "Show on all displays": "На всех мониторах",
-        "Used for posture and tongue reminders.": "Для напоминаний про осанку и язык.",
 
         // Звуки
         "Volume": "Громкость",
@@ -208,12 +154,9 @@ enum L10n {
         "Play": "Прослушать",
 
         // Напоминания и библиотека
-        "%@ — in %@": "%@ — через %@",
-        "%@ — paused": "%@ — на паузе",
         "%ld h": "%ld ч",
         "%ld h %ld min": "%ld ч %ld мин",
         "Every %@": "Каждые %@",
-        "Remind me now": "Напомнить сейчас",
         "Today: %ld reminders · %ld breaks": "Сегодня: напоминаний %ld · перерывов %ld",
         "Add reminder": "Добавить напоминание",
         "More": "Ещё",
@@ -223,7 +166,6 @@ enum L10n {
         "Name": "Название",
         "Text on the screen": "Текст на экране",
         "Open": "Открыть",
-        "Turn on this reminder": "Включить это напоминание",
         "Show the text on the screen": "Показывать текст на экране",
         "Remove reminder": "Удалить напоминание",
         "You removed this reminder.": "Ты удалил это напоминание.",
@@ -234,7 +176,6 @@ enum L10n {
         "For example: Relax your face": "Например: Расслабь лицо",
         "For example: Relax your jaw": "Например: Расслабь челюсть",
         "Create reminder": "Создать напоминание",
-        "Used for all reminders.": "Для всех напоминаний.",
 
         // Анимации
         "Arrow up": "Стрелка вверх",
@@ -275,7 +216,6 @@ enum L10n {
         "Welcome screen": "Экран приветствия",
         "Close": "Закрыть",
         "Change…": "Сменить…",
-        "How dark the screen becomes during a reminder.": "Насколько темнеет экран во время напоминания.",
         "Light": "Слабо",
         "Strong": "Сильно",
         "Try it": "Попробовать",
@@ -297,8 +237,6 @@ enum L10n {
         "The arrow, the icon and the text of a reminder on the screen.": "Стрелка, иконка и текст напоминания на экране.",
         "Darken the screen": "Затемнение экрана",
         "How dark and blurry the screen becomes during a reminder.": "Насколько темнеет и размывается экран во время напоминания.",
-        "My screen": "Мой экран",
-        "Show the reminder on top of your screen or your wallpaper.": "Показать напоминание поверх твоего экрана или обоев.",
         "Allow Screen Recording for Pinok in System Settings to see your screen.":
             "Разреши Pinok запись экрана в Системных настройках, чтобы видеть свой экран.",
         "All sounds of Pinok: reminders, breaks and the welcome screen.": "Все звуки Pinok: напоминания, перерывы и приветствие.",
@@ -311,13 +249,9 @@ enum L10n {
         "Choose a sound file": "Выбери звуковой файл",
         "Welcome sound": "Звук заставки",
         "Welcome melody": "Мелодия заставки",
-        "Screen effect": "Сила эффекта",
         "Wait while you type, talk in a call or watch a video.": "Ждать, пока ты печатаешь, говоришь по звонку или смотришь видео.",
         "Off": "Выкл",
-        "No reminders are on.": "Нет включённых напоминаний.",
-        "Remind": "Напомнить",
         "Break": "Перерыв",
-        "Quit": "Выйти",
         "Choose the language and the first reminders again.": "Снова выбрать язык и первые напоминания.",
         "Show": "Показать",
         "Show a reminder for": "Показывать напоминание",
@@ -336,7 +270,6 @@ enum L10n {
         "Skip and Esc always work.": "«Пропустить» и Esc работают всегда.",
         "Each break shows a list of exercises that are on. Click each one when you do it.":
             "На перерыве — список включённых упражнений. Отмечай каждое, когда сделаешь.",
-        "Other exercise": "Другое упражнение",
         "Each break shows one exercise that is on. You can change it during the break.":
             "На каждом перерыве — одно из включённых упражнений. Его можно сменить прямо на перерыве.",
         "Melodies": "Мелодии",
@@ -351,7 +284,6 @@ enum L10n {
         "A melody plays while the animation moves. Short sounds are built-in Mac sounds.":
             "Мелодия звучит, пока идёт анимация. Короткие звуки — встроенные звуки Mac.",
         "Push-ups": "Отжимания",
-        "Do 10 push-ups": "Отожмись 10 раз",
         "A short exercise keeps your body strong. Do 10 push-ups.":
             "Короткое упражнение держит тело в форме. Отожмись 10 раз.",
         "Bell": "Колокольчик",
@@ -362,7 +294,6 @@ enum L10n {
         "Blink slowly 10 times": "Медленно моргни 10 раз",
         "Look far away for 20 seconds": "Посмотри вдаль 20 секунд",
         "Drink some water": "Выпей воды",
-        "Stand up and stretch": "Встань и потянись",
         "Take 3 slow breaths": "Сделай 3 медленных вдоха",
         "Put cream on your hands": "Намажь руки кремом",
         "Your eyes become dry at the screen. Blink slowly to rest them.":
@@ -371,7 +302,6 @@ enum L10n {
             "Каждые 20 минут смотри на дальний предмет 20 секунд. Так глаза отдыхают.",
         "Drink water during the day. Your body and your head need it.":
             "Пей воду в течение дня. Это нужно телу и голове.",
-        "Stand up and move your body for one minute.": "Встань и подвигайся одну минуту.",
         "Slow breaths help you to be calm and to focus.": "Медленное дыхание помогает успокоиться и сосредоточиться.",
         "Your hands become dry at the keyboard. Put some cream on them.":
             "За клавиатурой руки сохнут. Намажь их кремом.",
@@ -381,7 +311,6 @@ enum L10n {
         "New combo": "Новое комбо",
         "Combo": "Комбо",
         "My combo": "Моё комбо",
-        "Turn on this combo": "Включить это комбо",
         "Reminders in this combo": "Напоминания в комбо",
         "Remove combo": "Удалить комбо",
         "You removed this combo.": "Ты удалил это комбо.",

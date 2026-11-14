@@ -365,15 +365,6 @@ final class Scheduler {
         return id
     }
 
-    /// «Пропустить следующий перерыв» — сдвигаем его на целый интервал.
-    func skipNextBreak() {
-        guard let nb = nextBreak else { return }
-        presenter.hideHints()
-        nextBreak = nb.addingTimeInterval(TimeInterval(settings.breakInterval * 60))
-        warnedFor = nil
-        stats.addSkip()
-    }
-
     func pause(for interval: TimeInterval) {
         pausedUntil = clock().addingTimeInterval(interval)
         presenter.hideHints()

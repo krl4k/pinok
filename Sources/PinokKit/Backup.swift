@@ -50,7 +50,6 @@ struct SettingsBackup: Codable, Equatable {
     var breakBackground: String?
     var breakGradient: String?
     var breakImagePath: String?
-    var breakMessages: [String]?
     var breakExercises: [String]?
     var breakExerciseCount: Int?
     var breakRequireList: Bool?
@@ -124,7 +123,6 @@ extension AppSettings {
         b.breakBackground = breakBackground.rawValue
         b.breakGradient = breakGradient.rawValue
         b.breakImagePath = embed(breakImagePath)
-        b.breakMessages = breakMessages
         b.breakExercises = breakExercises.map(\.rawValue)
         b.breakExerciseCount = breakExerciseCount
         b.breakRequireList = breakRequireList
@@ -217,7 +215,6 @@ extension AppSettings {
         if let v = b.breakBackground.flatMap(BreakBackground.init(rawValue:)) { breakBackground = v }
         if let v = b.breakGradient.flatMap(BreakGradient.init(rawValue:)) { breakGradient = v }
         if let v = b.breakImagePath { breakImagePath = restore(v) }
-        if let v = b.breakMessages { breakMessages = v }
         if let v = b.breakExercises { breakExercises = v.compactMap(BreakExercise.init(rawValue:)) }
         if let v = b.breakExerciseCount { breakExerciseCount = max(1, v) }
         if let v = b.breakRequireList { breakRequireList = v }
