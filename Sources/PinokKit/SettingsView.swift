@@ -504,10 +504,10 @@ private struct SetPage: View {
                 CardDivider()
                 StackedRow(title: t("Show the combo for"),
                            subtitle: t("A combo has more actions. Give it more time.")) {
-                    ChipPicker(options: [0, 8, 15, 30, 60],
-                               selection: Binding(get: { s.sets[i].duration ?? 0 },
-                                                  set: { s.sets[i].duration = $0 == 0 ? nil : $0 }),
-                               tint: colors[0]) { $0 == 0 ? t("Auto") : t("%ld sec", $0) }
+                    ChipPicker(options: [8, 15, 30, 60],
+                               selection: Binding(get: { s.sets[i].shownFor },
+                                                  set: { s.sets[i].duration = $0 }),
+                               tint: colors[0]) { t("%ld sec", $0) }
                 }
             }
 

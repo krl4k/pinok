@@ -168,8 +168,10 @@ struct ReminderSet: Codable, Identifiable, Hashable {
     var interval = 30
     var enabled = true
     var sound = "melody.jingle"
-    /// Сколько секунд показывать набор. `nil` — как в общих настройках.
+    /// Сколько секунд показывать набор. `nil` в старых настройках — 8 секунд.
     var duration: Int?
+    static let defaultDuration = 8
+    var shownFor: Int { duration ?? Self.defaultDuration }
 }
 
 /// То, что стоит в расписании: одиночное напоминание или набор.
@@ -191,7 +193,7 @@ struct ScheduledItem: Identifiable, Equatable {
             let members = set.reminderIDs.compactMap { id in reminders.first { $0.id == id } }
             guard !members.isEmpty else { return nil }
             return ScheduledItem(id: set.id, title: set.name, interval: set.interval,
-                                 sound: set.sound, members: members, isSet: true, duration: set.duration)
+                                 sound: set.sound, members: members, isSet: true, duration: set.shownFor)
         }
         items += reminders
             .filter { $0.enabled && !inSets.contains($0.id) }

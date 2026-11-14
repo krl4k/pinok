@@ -325,7 +325,6 @@ enum L10n {
         "Give yourself more time to do it.": "Дай себе время всё сделать.",
         "Show the combo for": "Показывать комбо",
         "A combo has more actions. Give it more time.": "В комбо больше действий. Дай ему больше времени.",
-        "Auto": "Авто",
         "%ld sec": "%ld сек",
         "Sunset": "Закат", "Ocean": "Океан", "Forest": "Лес", "Lavender": "Лаванда", "Midnight": "Полночь",
         "Trackpad haptics": "Вибрация трекпада",

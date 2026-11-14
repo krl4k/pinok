@@ -279,7 +279,7 @@ final class Scheduler {
     func preview(_ set: ReminderSet) {
         let members = set.reminderIDs.compactMap { id in settings.reminders.first { $0.id == id } }
         show(ScheduledItem(id: set.id, title: set.name, interval: set.interval, sound: set.sound,
-                           members: members, isSet: true, duration: set.duration), countInStats: false)
+                           members: members, isSet: true, duration: set.shownFor), countInStats: false)
     }
 
     func startBreak() {

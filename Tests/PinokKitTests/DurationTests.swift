@@ -50,7 +50,7 @@ struct DurationTests {
         #expect(presenter.nudgeDurations == [60])
     }
 
-    @Test func setWithAutoDurationUsesTheGlobalOne() {
+    @Test func setWithoutDurationShowsForEightSeconds() {
         let (scheduler, settings, presenter, _) = make()
         settings.nudgeDuration = 30
         let a = ReminderLibrary.template("posture")!.make()
@@ -58,7 +58,7 @@ struct DurationTests {
         let set = ReminderSet(name: "S", reminderIDs: [a.id], duration: nil)
         settings.sets = [set]
         scheduler.preview(set)
-        #expect(presenter.nudgeDurations == [30])
+        #expect(presenter.nudgeDurations == [8])
     }
 
     @Test func durationPersists() {
