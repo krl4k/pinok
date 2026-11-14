@@ -211,6 +211,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.plain)
                 .help(t("Close"))
+                .accessibilityLabel(t("Close"))
                 .position(x: 40, y: 40)
                 .opacity(intro.controls ? 1 : 0)
             }
@@ -270,7 +271,7 @@ struct OnboardingView: View {
 
     private var remindersStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            StepHeader(title: t("Pick your reminders"),
+            StepHeader(title: t("Choose your reminders"),
                        subtitle: t("They show for a few seconds. You can click and type at this time."))
             HStack(alignment: .top, spacing: 18) {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {

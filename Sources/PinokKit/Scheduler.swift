@@ -47,7 +47,10 @@ final class Scheduler {
     private(set) var nextBreak: Date?
     private(set) var pausedUntil: Date?
     private(set) var isIdle = false
-    private(set) var isSuspended = false
+    /// Почему всё остановлено: сон, экраны, блокировка, другой пользователь. Продолжаем, только когда причин нет.
+    enum SuspendReason { case sleep, screens, session, locked }
+    private(set) var suspendReasons: Set<SuspendReason> = []
+    var isSuspended: Bool { !suspendReasons.isEmpty }
     private(set) var onBreak = false
     /// Напоминания придержаны: идёт звонок или полноэкранное видео.
     private(set) var busyReason: BusyReason?
@@ -297,12 +300,15 @@ final class Scheduler {
         switch outcome {
         case .finished:
             presenter.playSound(settings.breakEndSound)
+            stats.commitBreak()
             stats.addBreak()
             resetAll()
         case .skipped:
+            stats.dropBreak()
             stats.addSkip()
             resetAll()
         case .snoozed(let minutes):
+            stats.dropBreak()
             snoozeBreak(minutes: minutes)
             resetReminders()
         }
@@ -336,14 +342,19 @@ final class Scheduler {
     /// Сон и долгие разрывы (больше 5 с) не считаем.
     private func countActiveTime(since previous: Date) {
         guard !isSuspended else { return }
-        if onBreak { stats.markBreak(); return }
+        if onBreak { stats.markBreak(); return }   // отрезок станет «перерывом», только если перерыв закончат
         // Тот же порог, что и для «тебя нет за компьютером»: чтение и видео без касаний тоже считаются.
         guard idleSeconds() < TimeInterval(settings.idleMinutes * 60) else {
             stats.endWorkStretch()
             return
         }
         let delta = now.timeIntervalSince(previous)
-        guard delta > 0, delta <= 5 else { return }
+        guard delta > 0 else { return }
+        guard delta <= 5 else {
+            // Долгий разрыв (сон, зависание) — отрезок работы закончился.
+            stats.endWorkStretch()
+            return
+        }
         stats.addActive(Int(delta.rounded()), app: frontApp())
     }
 
@@ -383,40 +394,39 @@ final class Scheduler {
 
     private func observeSystem() {
         let ws = NSWorkspace.shared.notificationCenter
-        let suspendOn: [Notification.Name] = [NSWorkspace.willSleepNotification,
-                                              NSWorkspace.screensDidSleepNotification,
-                                              NSWorkspace.sessionDidResignActiveNotification]
-        let resumeOn: [Notification.Name] = [NSWorkspace.didWakeNotification,
-                                             NSWorkspace.screensDidWakeNotification,
-                                             NSWorkspace.sessionDidBecomeActiveNotification]
-        for name in suspendOn {
-            ws.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.suspend() }
+        let pairs: [(Notification.Name, Notification.Name, SuspendReason)] = [
+            (NSWorkspace.willSleepNotification, NSWorkspace.didWakeNotification, .sleep),
+            (NSWorkspace.screensDidSleepNotification, NSWorkspace.screensDidWakeNotification, .screens),
+            (NSWorkspace.sessionDidResignActiveNotification, NSWorkspace.sessionDidBecomeActiveNotification, .session),
+        ]
+        for (off, on, reason) in pairs {
+            ws.addObserver(forName: off, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.suspend(reason) }
             }
-        }
-        for name in resumeOn {
-            ws.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.wake() }
+            ws.addObserver(forName: on, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.wake(reason) }
             }
         }
 
         let dnc = DistributedNotificationCenter.default()
         dnc.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.suspend() }
+            MainActor.assumeIsolated { self?.suspend(.locked) }
         }
         dnc.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.wake() }
+            MainActor.assumeIsolated { self?.wake(.locked) }
         }
     }
 
-    func suspend() {
-        isSuspended = true
+    func suspend(_ reason: SuspendReason = .sleep) {
+        suspendReasons.insert(reason)
         presenter.hideHints()
+        stats.endWorkStretch()
+        stats.save()
     }
 
-    func wake() {
-        guard isSuspended else { return }
-        isSuspended = false
+    /// Продолжаем только когда ушли все причины: экран проснулся на экране входа — ещё рано.
+    func wake(_ reason: SuspendReason = .sleep) {
+        guard suspendReasons.remove(reason) != nil, suspendReasons.isEmpty else { return }
         resetAll()
     }
 

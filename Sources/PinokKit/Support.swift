@@ -159,15 +159,26 @@ final class Stats {
         if activeSeconds / 30 != before { save() }
     }
 
-    /// Идёт перерыв: отмечаем отрезок и начинаем новый отрезок работы.
+    /// Отрезки, которые прошли на перерыве. Станут «перерывом» на ленте, только если перерыв закончили.
+    @ObservationIgnored private var pendingRest: Set<Int> = []
+
+    /// Идёт перерыв: запоминаем отрезок и начинаем новый отрезок работы.
     func markBreak() {
         rollover()
         currentWork = 0
-        let i = currentSlot
-        guard slots[i] != Slot.rest else { return }
-        slots[i] = Slot.rest
+        pendingRest.insert(currentSlot)
+    }
+
+    /// Перерыв закончили — отмечаем его на ленте.
+    func commitBreak() {
+        rollover()
+        for i in pendingRest where slots.indices.contains(i) { slots[i] = Slot.rest }
+        pendingRest = []
         save()
     }
+
+    /// Перерыв пропустили или отложили — на ленте его нет.
+    func dropBreak() { pendingRest = [] }
 
     /// Человек ушёл от компьютера — отрезок работы закончился.
     func endWorkStretch() { currentWork = 0 }
@@ -187,7 +198,12 @@ final class Stats {
     /// Сбрасывает счётчики, если наступил новый день.
     func rollover() {
         let now = Stats.key(for: today())
-        if now != day { day = now; load() }
+        if now != day {
+            save()          // дописываем хвост старого дня (пишем раз в 30 с)
+            day = now
+            pendingRest = []
+            load()
+        }
     }
 
     private func load() {
@@ -203,7 +219,7 @@ final class Stats {
         currentWork = 0
     }
 
-    private func save() {
+    func save() {
         d.set(counts, forKey: "stats.\(day).counts")
         d.set(breaks, forKey: "stats.\(day).breaks")
         d.set(skipped, forKey: "stats.\(day).skipped")

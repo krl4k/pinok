@@ -271,7 +271,7 @@ private struct GeneralPage: View {
                             .padding(2)
                             .overlay(Circle().strokeBorder(s.arrowColor == c ? Color.accentColor : .clear, lineWidth: 2))
                             .contentShape(Circle())
-                            .onTapGesture { withAnimation(.snappy) { s.arrowColor = c } }
+                            .choiceButton(c.title, selected: s.arrowColor == c) { withAnimation(.snappy) { s.arrowColor = c } }
                             .help(c.title)
                     }
                 }
@@ -293,7 +293,7 @@ private struct GeneralPage: View {
                            tint: SettingsPage.general.tint) { t("%ld sec", $0) }
             }
             CardDivider()
-            ToggleRow(title: t("Sounds"), subtitle: t("Turn off to mute all sounds of Pinok."), isOn: $s.soundsEnabled)
+            ToggleRow(title: t("Sounds"), subtitle: t("All sounds of Pinok: reminders, breaks and the welcome screen."), isOn: $s.soundsEnabled)
             CardDivider()
             Row(title: t("Volume"), subtitle: t("You hear a short sound when you release the slider.")) {
                 // Как в macOS: короткий звук с новой громкостью, когда отпустил ползунок.
@@ -323,7 +323,7 @@ private struct GeneralPage: View {
                     ToggleRow(title: t("Pause during calls"), isOn: $s.pauseOnCalls)
                     ToggleRow(title: t("Pause during full-screen video"), isOn: $s.pauseOnVideo)
                     ToggleRow(title: t("Wait until I stop typing"), isOn: $s.smartTiming)
-                    Row(title: t("Pause when I'm away for")) {
+                    Row(title: t("Pause when I am away for")) {
                         ChipPicker(options: [3, 5, 10, 15], selection: $s.idleMinutes,
                                    tint: SettingsPage.general.tint) { t("%ld min", $0) }
                     }
@@ -471,7 +471,7 @@ private struct ReminderPage: View {
                 }
             }
         } else {
-            FooterNote(t("This reminder was removed."))
+            FooterNote(t("You removed this reminder."))
         }
     }
 }
@@ -551,7 +551,7 @@ private struct SetPage: View {
                 }
             }
         } else {
-            FooterNote(t("This combo was removed."))
+            FooterNote(t("You removed this combo."))
         }
     }
 }
@@ -596,7 +596,7 @@ private struct LibraryPage: View {
                                             interval: 60, sound: "melody.jingle")
 
     var body: some View {
-        PageHeader(title: t("Add reminder"), subtitle: t("Pick a ready reminder, or make your own."),
+        PageHeader(title: t("Add reminder"), subtitle: t("Choose a ready reminder, or make your own."),
              symbol: "plus", colors: SettingsPage.library.colors, action: nil)
 
         SectionTitle(t("Ready reminders"))
@@ -761,7 +761,7 @@ private struct AnimationPicker: View {
                         .foregroundStyle(selected ? .primary : .secondary)
                 }
                 .contentShape(Rectangle())
-                .onTapGesture { withAnimation(.snappy) { selection = a } }
+                .choiceButton(a.title, selected: selected) { withAnimation(.snappy) { selection = a } }
             }
         }
     }
@@ -917,7 +917,7 @@ private struct BackgroundPicker: View {
             HStack(spacing: 12) {
                 ForEach(BreakBackground.allCases) { bg in
                     BackgroundOption(kind: bg, selected: s.breakBackground == bg, backdrop: preview(for: bg))
-                        .onTapGesture {
+                        .choiceButton(bg.title, selected: s.breakBackground == bg) {
                             if bg == .image, s.breakImagePath.isEmpty {
                                 chooseImage()
                             } else {
@@ -943,7 +943,7 @@ private struct BackgroundPicker: View {
                                 .foregroundStyle(s.breakGradient == g ? .primary : .secondary)
                         }
                         .contentShape(Rectangle())
-                        .onTapGesture { withAnimation(.snappy) { s.breakGradient = g } }
+                        .choiceButton(g.title, selected: s.breakGradient == g) { withAnimation(.snappy) { s.breakGradient = g } }
                     }
                     Spacer()
                 }
@@ -1508,7 +1508,7 @@ private struct ChipPicker<T: Hashable>: View {
                     .background(Capsule().fill(selected ? tint : Color.primary.opacity(0.07)))
                     .foregroundStyle(selected ? Color.white : Color.primary)
                     .contentShape(Capsule())
-                    .onTapGesture { withAnimation(.snappy) { selection = option } }
+                    .choiceButton(label(option), selected: selected) { withAnimation(.snappy) { selection = option } }
             }
         }
         .opacity(isEnabled ? 1 : 0.45)
@@ -1530,3 +1530,16 @@ private struct BringToFront: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
+
+
+// MARK: - Выбор из вариантов: настоящая кнопка (клавиатура и VoiceOver) вместо жеста
+
+extension View {
+    /// Делает вид кнопкой выбора: подпись для VoiceOver и признак «выбрано».
+    func choiceButton(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) { self }
+            .buttonStyle(.plain)
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}

@@ -924,6 +924,61 @@ struct SchedulerTests {
         #expect(h.stats.longestWork == 30)
         h.scheduler.startBreak()
         h.run(seconds: 1)
+        h.presenter.breaks.last?.completion(.finished)
         #expect(h.stats.slots[h.stats.currentSlot] == Stats.Slot.rest)
+    }
+
+    // MARK: - Исправления по ревью
+
+    @Test func screenWakeOnLockScreenDoesNotResume() {
+        let h = SchedulerHarness()
+        h.reset()
+        h.scheduler.suspend(.locked)
+        h.scheduler.suspend(.screens)
+        h.scheduler.wake(.screens)          // экран проснулся на экране входа
+        #expect(h.scheduler.isSuspended)
+        h.scheduler.wake(.locked)           // разблокировали
+        #expect(!h.scheduler.isSuspended)
+    }
+
+    @Test func lockEndsWorkStretch() {
+        let h = SchedulerHarness()
+        h.reset()
+        h.run(seconds: 600)
+        h.scheduler.suspend(.locked)
+        h.clock.advance(3600)
+        h.scheduler.wake(.locked)
+        h.run(seconds: 600)
+        #expect(h.stats.longestWork == 600)
+    }
+
+    @Test func skippedBreakIsNotPaintedOnTimeline() {
+        let h = SchedulerHarness()
+        h.settings.breakEnabled = true
+        h.reset()
+        h.tick(at: 3600)
+        #expect(h.scheduler.onBreak)
+        h.run(seconds: 5)
+        h.presenter.breaks[0].completion(.skipped)
+        #expect(!h.stats.slots.contains(Stats.Slot.rest))
+    }
+
+    @Test func finishedBreakIsPaintedOnTimeline() {
+        let h = SchedulerHarness()
+        h.settings.breakEnabled = true
+        h.reset()
+        h.tick(at: 3600)
+        h.run(seconds: 5)
+        h.presenter.breaks[0].completion(.finished)
+        #expect(h.stats.slots.contains(Stats.Slot.rest))
+    }
+
+    @Test func importedZeroIntervalsAreClamped() throws {
+        let h = SchedulerHarness()
+        let json = #"{"format":"pinok.settings","version":1,"breakInterval":0,"idleMinutes":0,"breakDuration":-3}"#
+        try h.settings.importBackup(Data(json.utf8), filesDir: FileManager.default.temporaryDirectory)
+        #expect(h.settings.breakInterval >= 10)
+        #expect(h.settings.idleMinutes >= 1)
+        #expect(h.settings.breakDuration >= 1)
     }
 }

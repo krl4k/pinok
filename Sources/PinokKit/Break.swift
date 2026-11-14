@@ -11,7 +11,7 @@ let snoozeOptions = [1, 5, 10]
 
 enum BreakTips {
     static let defaults = [
-        "Stand up and walk around for a couple of minutes",
+        "Stand up and walk for 2 minutes",
         "Look at something far away for 20 seconds",
         "Roll your shoulders back 10 times",
         "Join your hands and stretch up",
@@ -171,7 +171,12 @@ final class BreakController {
 
     /// `frame` — для записи демо: один блокер в заданном прямоугольнике.
     func show(seconds: Int, demo: Bool, frame: NSRect? = nil, completion: @escaping (BreakOutcome) -> Void) {
-        guard !isActive else { return }
+        // Уже идёт (например, демо из настроек) — закрываем его без ответа и показываем новый.
+        // Иначе настоящий перерыв никогда не вызовет completion, и расписание застрянет.
+        if isActive {
+            self.completion = nil
+            finish(.skipped)
+        }
         isActive = true
         self.completion = completion
 
@@ -479,7 +484,7 @@ struct WarningView: View {
             }
             Spacer(minLength: 8)
             ForEach(snoozeOptions, id: \.self) { m in
-                Button(t("+%ldm", m)) { onSnooze(m) }
+                Button(t("+%ld min", m)) { onSnooze(m) }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
             }

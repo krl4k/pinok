@@ -137,6 +137,7 @@ extension AppSettings {
     }
 
     /// Прочитать файл настроек и применить. Поля, которых нет в файле, не меняются.
+    /// Числа приводим к разумным границам: интервал 0 дал бы бесконечные перерывы.
     /// `filesDir` — куда положить свои картинки и звуки из файла.
     func importBackup(_ data: Data, filesDir: URL? = nil) throws {
         let decoder = JSONDecoder()
@@ -168,25 +169,26 @@ extension AppSettings {
 
         if let v = b.language.flatMap(AppLanguage.init(rawValue:)) { language = v }
         if let v = b.showCountdown { showCountdown = v }
-        if let v = b.volume { volume = v }
+        if let v = b.volume { volume = min(1, max(0, v)) }
         if let v = b.soundsEnabled { soundsEnabled = v }
-        if let v = b.idleMinutes { idleMinutes = v }
+        if let v = b.idleMinutes { idleMinutes = max(1, v) }
         if let v = b.introSound { introSound = restoreSound(v) }
         if let v = b.haptics { haptics = v }
         if let v = b.smartTiming { smartTiming = v }
         if let v = b.pauseOnCalls { pauseOnCalls = v }
         if let v = b.pauseOnVideo { pauseOnVideo = v }
-        if let v = b.nudgeDim { nudgeDim = v }
-        if let v = b.nudgeBlur { nudgeBlur = v }
+        if let v = b.nudgeDim { nudgeDim = min(1, max(0, v)) }
+        if let v = b.nudgeBlur { nudgeBlur = min(1, max(0, v)) }
         if let v = b.arrowColor.flatMap(ArrowColor.init(rawValue:)) { arrowColor = v }
         if let v = b.arrowWidth { arrowWidth = v }
         if let v = b.arrowStyle.flatMap(ArrowStyle.init(rawValue:)) { arrowStyle = v }
         if let v = b.nudgeAllScreens { nudgeAllScreens = v }
-        if let v = b.nudgeDuration { nudgeDuration = v }
+        if let v = b.nudgeDuration { nudgeDuration = max(1, v) }
         if let list = b.reminders {
             reminders = list.map { r in
                 var r = r
                 r.sound = restoreSound(r.sound)
+                r.interval = max(1, r.interval)
                 if let ref = r.imagePath {
                     let path = restore(ref)
                     r.imagePath = path.isEmpty ? nil : path
@@ -199,14 +201,16 @@ extension AppSettings {
             sets = list.map { c in
                 var c = c
                 c.sound = restoreSound(c.sound)
+                c.interval = max(1, c.interval)
+                c.duration = c.duration.map { max(1, $0) }
                 c.reminderIDs = c.reminderIDs.filter(ids.contains)
                 return c
             }
         }
         if let v = b.breakEnabled { breakEnabled = v }
-        if let v = b.breakInterval { breakInterval = v }
-        if let v = b.breakDuration { breakDuration = v }
-        if let v = b.breakWarning { breakWarning = v }
+        if let v = b.breakInterval { breakInterval = max(10, v) }
+        if let v = b.breakDuration { breakDuration = max(1, v) }
+        if let v = b.breakWarning { breakWarning = max(0, v) }
         if let v = b.breakStartSound { breakStartSound = restoreSound(v) }
         if let v = b.breakEndSound { breakEndSound = restoreSound(v) }
         if let v = b.floatingCountdown { floatingCountdown = v }
@@ -215,7 +219,7 @@ extension AppSettings {
         if let v = b.breakImagePath { breakImagePath = restore(v) }
         if let v = b.breakMessages { breakMessages = v }
         if let v = b.breakExercises { breakExercises = v.compactMap(BreakExercise.init(rawValue:)) }
-        if let v = b.breakExerciseCount { breakExerciseCount = v }
+        if let v = b.breakExerciseCount { breakExerciseCount = max(1, v) }
         if let v = b.breakRequireList { breakRequireList = v }
     }
 
@@ -240,7 +244,7 @@ enum BackupPanels {
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         do {
             try settings.exportBackup().write(to: url)
-            return t("The settings are saved.")
+            return t("Pinok saved the settings.")
         } catch {
             return t("Pinok cannot save the file.")
         }
@@ -258,7 +262,7 @@ enum BackupPanels {
         guard let data = try? Data(contentsOf: url) else { return t("Pinok cannot open the file.") }
         do {
             try settings.importBackup(data)
-            return t("The settings are loaded.")
+            return t("Pinok loaded the settings.")
         } catch SettingsBackup.BackupError.newerVersion {
             return t("This file is from a newer Pinok. Update the app.")
         } catch {

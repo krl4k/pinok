@@ -20,6 +20,11 @@ public struct PinokApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Статистика пишется на диск раз в 30 с — при выходе дописываем остаток.
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { Stats.shared.save() }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
             if let i = CommandLine.arguments.firstIndex(of: "--render-variants"), i + 1 < CommandLine.arguments.count {
@@ -142,17 +147,29 @@ struct MenuContent: View {
             case .now: nowTab
             case .stats: statsTab
             }
-            Divider()
-            HStack {
-                Spacer()
-                Button(t("Quit")) { NSApp.terminate(nil) }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-                    .keyboardShortcut("q")
-            }
+            quitArea
         }
         .padding(16)
         .frame(width: 340)
+    }
+
+    // MARK: Выход
+
+    /// Выход: красная строка на всю ширину внизу панели.
+    private var quitArea: some View {
+        Button { NSApp.terminate(nil) } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "power").font(.system(size: 15, weight: .semibold))
+                Text(t("Quit Pinok")).font(.callout.weight(.semibold))
+                Spacer()
+            }
+            .foregroundStyle(.red)
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.red.opacity(0.08)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("q")
     }
 
     // MARK: Шапка
@@ -206,10 +223,7 @@ struct MenuContent: View {
     private var nowTab: some View {
         VStack(spacing: 14) {
             hero
-            VStack(spacing: 8) {
-                if !scheduler.isPaused { pauseRow }
-            }
-            .opacity(scheduler.isHolding ? 0.6 : 1)
+            if !scheduler.isPaused && !scheduler.onBreak { pauseRow }
         }
     }
 
@@ -295,7 +309,7 @@ struct MenuContent: View {
                 StatTile(value: shortDuration(stats.longestWork), label: t("Longest work"))
             }
 
-            let apps = Array(stats.topApps.prefix(4))
+            let apps = Array(stats.topApps.filter { $0.seconds >= 60 }.prefix(4))
             if !apps.isEmpty {
                 Text(t("Top apps")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 HStack(spacing: 10) {
@@ -345,12 +359,11 @@ private struct DayTimeline: View {
         let first = slots.firstIndex { $0 != Stats.Slot.none }.map { ($0 / 4) * 4 } ?? max(0, current - current % 4)
         let range = Array(first...max(first, current))
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 2) {
+            HStack(spacing: range.count > 40 ? 1 : 2) {
                 ForEach(range, id: \.self) { i in
                     let v = slots[i]
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(v == Stats.Slot.rest ? SettingsPage.breaks.colors[0]
-                              : v == Stats.Slot.work ? Color.accentColor.opacity(0.75) : Color.primary.opacity(0.08))
+                    RoundedRectangle(cornerRadius: range.count > 40 ? 1 : 2)
+                        .fill(Self.color(v))
                         .frame(height: v == Stats.Slot.rest ? 26 : 20)
                 }
             }
@@ -358,22 +371,27 @@ private struct DayTimeline: View {
             HStack {
                 Text(String(format: "%d:00", first / 4))
                 Spacer()
-                if range.count >= 12 {
-                    Text(String(format: "%d:00", (first + current) / 8))
-                    Spacer()
-                }
                 Text(t("now"))
             }
             .font(.caption2).foregroundStyle(.secondary)
             HStack(spacing: 14) {
-                legend(t("Work"), Color.accentColor)
-                legend(t("Break"), SettingsPage.breaks.colors[0])
-                legend(t("Away"), Color.primary.opacity(0.25))
+                legend(t("Work"), Self.color(Stats.Slot.work))
+                legend(t("Break"), Self.color(Stats.Slot.rest))
+                legend(t("Away"), Self.color(Stats.Slot.none))
             }
             .font(.caption)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(t("Your day: work, breaks and time away"))
+    }
+
+    /// Один цвет на тип отрезка — и для полосок, и для легенды.
+    static func color(_ slot: Int) -> Color {
+        switch slot {
+        case Stats.Slot.rest: SettingsPage.breaks.colors[0]
+        case Stats.Slot.work: Color.accentColor.opacity(0.8)
+        default: Color.primary.opacity(0.15)
+        }
     }
 
     private func legend(_ title: String, _ color: Color) -> some View {
@@ -411,7 +429,6 @@ private struct Hero: View {
     let big: String
     var bigSize: CGFloat = 46
     var monospaced = false
-    var footnote: String? = nil
 
     var body: some View {
         VStack(spacing: 4) {
@@ -426,40 +443,9 @@ private struct Hero: View {
                 .monospacedDigit()
                 .multilineTextAlignment(.center)
                 .contentTransition(monospaced ? .numericText(countsDown: true) : .identity)
-            if let footnote {
-                Text(footnote).font(.caption).foregroundStyle(.secondary)
-            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct InfoRow: View {
-    let symbol: String
-    let colors: [Color]
-    let title: String
-    let value: String?
-    var chevron: Chevron? = nil
-
-    enum Chevron { case up, down }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            AppIcon(symbol: symbol, colors: colors, size: 26)
-            Text(title).font(.callout)
-            Spacer()
-            if let value {
-                Text(value).font(.callout.weight(.medium)).foregroundStyle(.secondary)
-            }
-            if let chevron {
-                Image(systemName: chevron == .up ? "chevron.up" : "chevron.down").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            }
-        }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.05)))
-        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
 }
@@ -473,6 +459,7 @@ private struct StatTile: View {
             Text(value).font(.system(size: 22, weight: .bold, design: .rounded)).monospacedDigit()
             Text(label).font(.caption).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
         }
+        .padding(.horizontal, 6)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.05)))
@@ -486,6 +473,8 @@ private struct PanelPill: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.callout.weight(.semibold))
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 10).padding(.vertical, 7)
             .background(Capsule().fill(Color.primary.opacity(filled ? (configuration.isPressed ? 0.2 : 0.12) : (configuration.isPressed ? 0.08 : 0))))
             .overlay(Capsule().strokeBorder(Color.primary.opacity(filled ? 0 : 0.2)))

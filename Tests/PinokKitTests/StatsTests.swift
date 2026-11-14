@@ -205,6 +205,7 @@ struct StatsTests {
         let s = make(TestSupport.freshDefaults(), TestClock())
         s.addActive(100)
         s.markBreak()
+        s.commitBreak()
         #expect(s.slots[s.currentSlot] == Stats.Slot.rest)
         s.addActive(40)
         // Перерыв важнее работы в том же отрезке.
@@ -220,5 +221,16 @@ struct StatsTests {
         c.year = 2026; c.month = 1; c.day = 1; c.hour = 9; c.minute = 44
         let date = Calendar.current.date(from: c)!
         #expect(Stats.slot(for: date) == 9 * 4 + 2)
+    }
+
+    @Test func rolloverSavesTheEndOfTheOldDay() {
+        let d = TestSupport.freshDefaults()
+        let clock = TestClock()
+        let s = make(d, clock)
+        s.addActive(19)                      // меньше 30 с — ещё не на диске
+        let oldDay = Stats.key(for: clock.now)
+        clock.advance(day)
+        s.rollover()
+        #expect(d.integer(forKey: "stats.\(oldDay).active") == 19)
     }
 }

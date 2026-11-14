@@ -9,8 +9,8 @@ enum BusyReason {
 
     var title: String {
         switch self {
-        case .call: t("you are in a call")
-        case .video: t("fullscreen video")
+        case .call: t("You are in a call")
+        case .video: t("Full-screen video")
         }
     }
 }
