@@ -74,8 +74,6 @@ final class Scheduler {
     static let maxBreakDefer: TimeInterval = 30
     /// Минимальная пауза между двумя напоминаниями подряд.
     static let spacing: TimeInterval = 45
-    /// Без ввода дольше минуты — человек не за компьютером, время не считаем.
-    static let activeGrace: TimeInterval = 60
 
     init(settings: AppSettings? = nil,
          stats: Stats? = nil,
@@ -334,12 +332,13 @@ final class Scheduler {
         stats.addPostpone()
     }
 
-    /// Время за компьютером: считаем секунды между тиками, пока есть ввод за последнюю минуту.
+    /// Время за компьютером: считаем секунды между тиками, пока человек не ушёл (порог — настройка простоя).
     /// Сон и долгие разрывы (больше 5 с) не считаем.
     private func countActiveTime(since previous: Date) {
         guard !isSuspended else { return }
         if onBreak { stats.markBreak(); return }
-        guard idleSeconds() < Self.activeGrace else {
+        // Тот же порог, что и для «тебя нет за компьютером»: чтение и видео без касаний тоже считаются.
+        guard idleSeconds() < TimeInterval(settings.idleMinutes * 60) else {
             stats.endWorkStretch()
             return
         }

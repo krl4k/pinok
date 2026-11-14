@@ -878,14 +878,17 @@ struct SchedulerTests {
         h.reset()
         h.run(seconds: 10)
         #expect(h.stats.activeSeconds == 10)
-        h.idle = 120
+        h.idle = 120              // 2 мин без касаний — ещё за компьютером (порог 5 мин)
         h.run(seconds: 10)
-        #expect(h.stats.activeSeconds == 10)
+        #expect(h.stats.activeSeconds == 20)
+        h.idle = 400              // больше 5 мин — ушёл
+        h.run(seconds: 10)
+        #expect(h.stats.activeSeconds == 20)
         h.idle = 5
         h.advanceAndTick(600)   // сон или долгий разрыв не считаем
-        #expect(h.stats.activeSeconds == 10)
+        #expect(h.stats.activeSeconds == 20)
         h.run(seconds: 3)
-        #expect(h.stats.activeSeconds == 13)
+        #expect(h.stats.activeSeconds == 23)
     }
 
     @Test func activeTimeCountsDuringPause() {
@@ -914,7 +917,7 @@ struct SchedulerTests {
         h.reset()
         h.run(seconds: 30)
         #expect(h.stats.longestWork == 30)
-        h.idle = 120
+        h.idle = 400
         h.run(seconds: 5)
         h.idle = 5
         h.run(seconds: 10)
