@@ -344,13 +344,17 @@ private struct GeneralPage: View {
 
         SectionTitle(t("Settings file"))
         Card {
-            Row(title: t("Move the settings to another Mac"),
-                subtitle: t("The file has all settings. Statistics stay on this Mac.")) {
-                HStack(spacing: 8) {
-                    Button(t("Export…")) { backupMessage = BackupPanels.export(s) }
-                    Button(t("Import…")) { pendingImport = BackupPanels.chooseFile() }
+            HStack(spacing: 8) {
+                Button { backupMessage = BackupPanels.export(s) } label: {
+                    Label(t("Export…"), systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
+                }
+                Button { pendingImport = BackupPanels.chooseFile() } label: {
+                    Label(t("Import…"), systemImage: "square.and.arrow.down").frame(maxWidth: .infinity)
                 }
             }
+            .controlSize(.large)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             if let backupMessage {
                 CardDivider()
                 Text(backupMessage)

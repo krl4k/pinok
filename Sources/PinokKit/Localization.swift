@@ -32,8 +32,6 @@ enum L10n {
         // Меню в трее
         // Файл настроек
         "Settings file": "Файл настроек",
-        "Move the settings to another Mac": "Перенести настройки на другой Mac",
-        "The file has all settings. Statistics stay on this Mac.": "В файле все настройки. Статистика остаётся на этом Mac.",
         "Export…": "Экспорт…",
         "Import…": "Импорт…",
         "Replace all settings?": "Заменить все настройки?",
