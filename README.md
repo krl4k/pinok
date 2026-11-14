@@ -29,10 +29,14 @@ The app counts the time only on your Mac. It does not record the screen.
 
 ## Install
 
-1. Open `Pinok-<version>.pkg`.
-2. Find the ↑ icon in the menu bar.
+1. Download `Pinok-<version>.dmg` from [Releases](https://github.com/krl4k/pinok/releases).
+2. Open the file and drag **Pinok** to **Applications**.
+3. Start Pinok. Find the ↑ icon in the menu bar.
 
-The app does not have an Apple signature. If macOS stops the app, right-click the file and click **Open**.
+The app does not have an Apple signature. Thus, macOS stops it the first time. To start it:
+
+1. Open **System Settings → Privacy & Security**.
+2. Below the message about Pinok, click **Open Anyway**.
 
 ## Build
 
@@ -40,6 +44,6 @@ You must have macOS 26 and Xcode 26 or newer.
 
 ```bash
 ./build.sh                 # build/Pinok.app
-./scripts/make-pkg.sh      # build/Pinok-<version>.pkg
+./scripts/make-dmg.sh      # build/Pinok-<version>.dmg
 swift test --no-parallel   # tests
 ```
