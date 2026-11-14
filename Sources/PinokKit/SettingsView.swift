@@ -126,7 +126,7 @@ struct SettingsView: View {
 
     @MainActor
     private static var defaultPage: SettingsPage {
-        launchPage ?? AppSettings.shared.reminders.first.map { .reminder($0.id) } ?? .library
+        launchPage ?? .general
     }
 
     var body: some View {
