@@ -234,6 +234,8 @@ private struct GeneralPage: View {
     @Bindable private var s = AppSettings.shared
     private var stats = Stats.shared
     @State private var moreSmartPause = false
+    @State private var backupMessage: String?
+    @State private var pendingImport: URL?
 
     var body: some View {
         PageHeader(page: .general, subtitle: t("Today: %ld reminders · %ld breaks", stats.total, stats.breaks))
@@ -338,6 +340,36 @@ private struct GeneralPage: View {
             CardDivider()
             SoundRow(title: t("Welcome sound"), colors: SettingsPage.general.colors,
                      selection: $s.introSound)
+        }
+
+        SectionTitle(t("Settings file"))
+        Card {
+            Row(title: t("Move the settings to another Mac"),
+                subtitle: t("The file has all settings. Statistics stay on this Mac.")) {
+                HStack(spacing: 8) {
+                    Button(t("Export…")) { backupMessage = BackupPanels.export(s) }
+                    Button(t("Import…")) { pendingImport = BackupPanels.chooseFile() }
+                }
+            }
+            if let backupMessage {
+                CardDivider()
+                Text(backupMessage)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+            }
+        }
+        .alert(t("Replace all settings?"), isPresented: Binding(
+            get: { pendingImport != nil },
+            set: { if !$0 { pendingImport = nil } })) {
+            Button(t("Replace"), role: .destructive) {
+                if let url = pendingImport { backupMessage = BackupPanels.importFile(url, into: s) }
+                pendingImport = nil
+            }
+            Button(t("Cancel"), role: .cancel) { pendingImport = nil }
+        } message: {
+            Text(t("The settings from the file replace your settings."))
         }
     }
 }

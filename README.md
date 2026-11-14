@@ -12,6 +12,7 @@ Pinok is a small Mac app in the menu bar. It tells you to sit up straight, keep 
 - **Combos.** Some reminders show together, so you stop one time, not three.
 - **Breaks.** The screen locks for 1 to 10 minutes and shows a list of exercises. You can skip the break or move it by 1, 5 or 10 minutes.
 - **Smart pause.** The app waits when you type, when you are in a call or when a video is in full screen. It stops when you are away.
+- **Settings file.** Export all settings to one file and import it on another Mac. Your own icons and sounds go into the file too.
 - English and Russian.
 
 ![The break screen with a list of exercises](docs/break.gif)

@@ -26,6 +26,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DesignVariantRenderer.renderAll(to: CommandLine.arguments[i + 1])
                 exit(0)
             }
+            // Файл настроек из терминала: --export-settings <файл> | --import-settings <файл>
+            let a = CommandLine.arguments
+            if let i = a.firstIndex(of: "--export-settings"), i + 1 < a.count {
+                let ok = (try? AppSettings.shared.exportBackup().write(to: URL(fileURLWithPath: a[i + 1]))) != nil
+                print(ok ? "saved: \(a[i + 1])" : "error: cannot write \(a[i + 1])")
+                exit(ok ? 0 : 1)
+            }
+            if let i = a.firstIndex(of: "--import-settings"), i + 1 < a.count {
+                guard let data = FileManager.default.contents(atPath: a[i + 1]) else { print("error: cannot read"); exit(1) }
+                do { try AppSettings.shared.importBackup(data); print("loaded: \(a[i + 1])"); exit(0) }
+                catch { print("error: \(error)"); exit(1) }
+            }
             if let i = CommandLine.arguments.firstIndex(of: "--render-panel"), i + 1 < CommandLine.arguments.count {
                 Scheduler.shared.start()
                 Scheduler.shared.tick()

@@ -30,6 +30,22 @@ enum L10n {
     /// Английская строка → русская. Ключ — сама английская строка.
     static let ru: [String: String] = [
         // Меню в трее
+        // Файл настроек
+        "Settings file": "Файл настроек",
+        "Move the settings to another Mac": "Перенести настройки на другой Mac",
+        "The file has all settings. Statistics stay on this Mac.": "В файле все настройки. Статистика остаётся на этом Mac.",
+        "Export…": "Экспорт…",
+        "Import…": "Импорт…",
+        "Replace all settings?": "Заменить все настройки?",
+        "Replace": "Заменить",
+        "Cancel": "Отмена",
+        "The settings from the file replace your settings.": "Настройки из файла заменят твои текущие настройки.",
+        "The settings are saved.": "Настройки сохранены.",
+        "The settings are loaded.": "Настройки загружены.",
+        "Pinok cannot save the file.": "Pinok не может сохранить файл.",
+        "Pinok cannot open the file.": "Pinok не может открыть файл.",
+        "This file is from a newer Pinok. Update the app.": "Файл из более новой версии Pinok. Обнови приложение.",
+        "This file is not a Pinok settings file.": "Это не файл настроек Pinok.",
         // Панель в трее (вкладки «Сейчас» и «Статистика»)
         "Now": "Сейчас",
         "Pause for %ld min": "Пауза на %ld мин",
