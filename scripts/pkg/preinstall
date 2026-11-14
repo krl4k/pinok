@@ -1,0 +1,5 @@
+#!/bin/bash
+# Закрываем старую версию перед обновлением (и прежнее название Upright).
+pkill -x Pinok || true
+pkill -x Upright || true
+exit 0

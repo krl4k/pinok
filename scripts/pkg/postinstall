@@ -1,0 +1,5 @@
+#!/bin/bash
+# Запускаем приложение от имени пользователя, который сейчас за компьютером.
+USER_ID=$(stat -f %u /dev/console)
+launchctl asuser "$USER_ID" open /Applications/Pinok.app || true
+exit 0
