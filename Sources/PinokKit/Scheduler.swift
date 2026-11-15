@@ -63,6 +63,8 @@ final class Scheduler {
     @ObservationIgnored private let clock: () -> Date
     @ObservationIgnored private let idleSeconds: () -> TimeInterval
     @ObservationIgnored private let frontApp: @MainActor () -> String?
+    /// Случайная добавка к разносу напоминаний (в тестах — 0).
+    @ObservationIgnored private let jitter: () -> TimeInterval
     @ObservationIgnored private let detectBusy: @MainActor (AppSettings) -> BusyReason?
 
     @ObservationIgnored private var timer: Timer?
@@ -77,6 +79,9 @@ final class Scheduler {
     static let maxBreakDefer: TimeInterval = 30
     /// Минимальная пауза между двумя напоминаниями подряд.
     static let spacing: TimeInterval = 45
+    /// Напоминания не идут подряд: между ними минимум 3 минуты (+ до 2 минут случайно).
+    static let minGap: TimeInterval = 180
+    static let maxJitter: TimeInterval = 120
 
     init(settings: AppSettings? = nil,
          stats: Stats? = nil,
@@ -84,6 +89,7 @@ final class Scheduler {
          clock: @escaping () -> Date = Date.init,
          idleSeconds: @escaping () -> TimeInterval = Scheduler.systemIdleSeconds,
          frontApp: (@MainActor () -> String?)? = nil,
+         jitter: (() -> TimeInterval)? = nil,
          detectBusy: (@MainActor (AppSettings) -> BusyReason?)? = nil) {
         self.settings = settings ?? .shared
         self.stats = stats ?? .shared
@@ -91,6 +97,7 @@ final class Scheduler {
         self.clock = clock
         self.idleSeconds = idleSeconds
         self.frontApp = frontApp ?? { Scheduler.frontmostAppID() }
+        self.jitter = jitter ?? { TimeInterval.random(in: 0...Scheduler.maxJitter) }
         self.detectBusy = detectBusy ?? { Scheduler.systemBusyReason($0) }
         self.now = clock()
     }
@@ -127,20 +134,44 @@ final class Scheduler {
             nextFire[id] = nil
             return
         }
-        nextFire[id] = clock().addingTimeInterval(TimeInterval(item.interval * 60))
+        nextFire[id] = spread(clock().addingTimeInterval(TimeInterval(item.interval * 60)), id: id, among: nextFire)
         knownIntervals[id] = item.interval
+    }
+
+    /// Сдвигает время напоминания, чтобы оно не шло вплотную к другим:
+    /// если рядом (ближе `minGap`) уже есть другое — ставим после него на `minGap` + случайная добавка.
+    func spread(_ date: Date, id: UUID, among fires: [UUID: Date]) -> Date {
+        let others = fires.filter { $0.key != id }.map(\.value).sorted()
+        var result = date
+        var moved = true
+        var guardCount = 0
+        while moved && guardCount < 50 {
+            moved = false
+            guardCount += 1
+            if let near = others.first(where: { abs($0.timeIntervalSince(result)) < Self.minGap }) {
+                result = near.addingTimeInterval(Self.minGap + jitter())
+                moved = true
+            }
+        }
+        return result
     }
 
     /// Напоминания изменились в настройках: новые и изменённые — заново, удалённые — убрать.
     func syncReminders() {
         var updated: [UUID: Date] = [:]
+        var fresh: [ScheduledItem] = []
         for item in scheduledItems {
             if let date = nextFire[item.id], knownIntervals[item.id] == item.interval {
                 updated[item.id] = date
             } else {
-                updated[item.id] = clock().addingTimeInterval(TimeInterval(item.interval * 60))
+                fresh.append(item)
             }
             knownIntervals[item.id] = item.interval
+        }
+        // Новые ставим по одному, разнося от уже стоящих — чтобы не пришли все разом.
+        for item in fresh {
+            let base = clock().addingTimeInterval(TimeInterval(item.interval * 60))
+            updated[item.id] = spread(base, id: item.id, among: updated)
         }
         nextFire = updated
     }

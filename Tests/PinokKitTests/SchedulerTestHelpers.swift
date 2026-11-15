@@ -38,6 +38,7 @@ final class SchedulerHarness {
                               clock: { clock.now },
                               idleSeconds: { [unowned self] in self.idle },
                               frontApp: { [unowned self] in self.app },
+                              jitter: { 0 },
                               detectBusy: { [unowned self] _ in self.busy })
     }
 

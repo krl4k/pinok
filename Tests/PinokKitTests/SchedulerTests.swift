@@ -50,31 +50,51 @@ struct SchedulerTests {
 
     // MARK: - Один показ за тик и интервал между показами
 
-    @Test func onlyOneItemPerTickAndSecondIsSpaced() {
+    @Test func sameIntervalRemindersAreSpreadApart() {
         let h = SchedulerHarness()
         let a = SchedulerHarness.reminder("A", every: 20)
         let b = SchedulerHarness.reminder("B", every: 20)
         h.settings.reminders = [a, b]
         h.reset()
 
+        let fa = try! #require(h.scheduler.nextFire[a.id])
+        let fb = try! #require(h.scheduler.nextFire[b.id])
+        // Один в срок, другой — через 3 минуты после него.
+        #expect(abs(fa.timeIntervalSince(fb)) == Scheduler.minGap)
+        let first = min(fa, fb), second = max(fa, fb)
+        #expect(first == h.at(1200))
+
         h.tick(at: 1200)
         #expect(h.presenter.nudges.count == 1)
-        let firstID = h.presenter.nudges[0][0].id
-        let secondID = firstID == a.id ? b.id : a.id
-        #expect(h.scheduler.nextFire[secondID] == h.at(1200))
-
-        // На следующем тике второй ещё ждёт: сдвигается на last + 45 с.
-        h.tick(at: 1201)
+        h.clock.now = second.addingTimeInterval(-1)
+        h.scheduler.tick()
         #expect(h.presenter.nudges.count == 1)
-        #expect(h.scheduler.nextFire[secondID] == h.at(1200 + Scheduler.spacing))
-
-        h.tick(at: 1244)
-        #expect(h.presenter.nudges.count == 1)
-        h.tick(at: 1245)
+        h.clock.now = second
+        h.scheduler.tick()
         #expect(h.presenter.nudges.count == 2)
-        #expect(h.presenter.nudges[1][0].id == secondID)
         #expect(h.stats.count(for: a.id) == 1)
         #expect(h.stats.count(for: b.id) == 1)
+    }
+
+    @Test func refireKeepsTheGap() {
+        let h = SchedulerHarness()
+        let a = SchedulerHarness.reminder("A", every: 10)
+        let b = SchedulerHarness.reminder("B", every: 20)
+        h.settings.reminders = [a, b]
+        h.reset()
+        h.tick(at: 600)   // A; его следующий раз попал бы на 1200 вместе с B — уходит на 1380
+        #expect(h.scheduler.nextFire[b.id] == h.at(1200))
+        #expect(h.scheduler.nextFire[a.id] == h.at(1200 + Scheduler.minGap))
+    }
+
+    @Test func manyRemindersNeverCloserThanTheGap() {
+        let h = SchedulerHarness()
+        h.settings.reminders = (0..<6).map { SchedulerHarness.reminder("R\($0)", every: 15) }
+        h.reset()
+        let times = h.scheduler.nextFire.values.sorted()
+        for (x, y) in zip(times, times.dropFirst()) {
+            #expect(y.timeIntervalSince(x) >= Scheduler.minGap)
+        }
     }
 
     @Test func dueItemAfterPreviewIsPushedBySpacing() {
@@ -99,8 +119,8 @@ struct SchedulerTests {
         h.settings.reminders = [a, b]
         h.reset()
         h.tick(at: 600)   // A
-        h.tick(at: 1200)  // A и B вместе, показывается один
-        h.tick(at: 1245)  // второй
+        h.tick(at: 1200)  // B (A разнесён на 3 минуты позже)
+        h.tick(at: 1380)  // A
         #expect(h.presenter.nudges.count == 3)
     }
 
