@@ -978,4 +978,12 @@ struct SchedulerTests {
         #expect(h.settings.idleMinutes >= 1)
         #expect(h.settings.breakDuration >= 1)
     }
+
+    @Test func menuBarShowsFullIntervalRightAfterStart() {
+        let h = SchedulerHarness()
+        h.settings.breakEnabled = true
+        h.clock.advance(0.4)          // reset позже, чем создан Scheduler
+        h.reset()
+        #expect(h.scheduler.menuBarText == "60m")
+    }
 }

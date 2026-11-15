@@ -183,8 +183,11 @@ final class Scheduler {
     }
 
     func resetBreak() {
+        // `now` обновляем тут же: иначе до следующего тика строка меню считает от старого `now`
+        // и на миг показывает 61m вместо 60m.
+        now = clock()
         nextBreak = settings.breakEnabled
-            ? clock().addingTimeInterval(TimeInterval(settings.breakInterval * 60)) : nil
+            ? now.addingTimeInterval(TimeInterval(settings.breakInterval * 60)) : nil
         warnedFor = nil
         presenter.hideHints()
     }
