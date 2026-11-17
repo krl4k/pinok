@@ -59,7 +59,7 @@ struct SchedulerTests {
 
         let fa = try! #require(h.scheduler.nextFire[a.id])
         let fb = try! #require(h.scheduler.nextFire[b.id])
-        // Один в срок, другой — через 3 минуты после него.
+        // Один в срок, другой — через 5 минут после него.
         #expect(abs(fa.timeIntervalSince(fb)) == Scheduler.minGap)
         let first = min(fa, fb), second = max(fa, fb)
         #expect(first == h.at(1200))
@@ -82,7 +82,7 @@ struct SchedulerTests {
         let b = SchedulerHarness.reminder("B", every: 20)
         h.settings.reminders = [a, b]
         h.reset()
-        h.tick(at: 600)   // A; его следующий раз попал бы на 1200 вместе с B — уходит на 1380
+        h.tick(at: 600)   // A; его следующий раз попал бы на 1200 вместе с B — уходит на 1500
         #expect(h.scheduler.nextFire[b.id] == h.at(1200))
         #expect(h.scheduler.nextFire[a.id] == h.at(1200 + Scheduler.minGap))
     }
@@ -107,9 +107,26 @@ struct SchedulerTests {
         h.scheduler.preview(other)
         h.tick(at: 1200)
         #expect(h.presenter.nudges.count == 1)  // только превью
-        #expect(h.scheduler.nextFire[a.id] == h.at(1235))
-        h.tick(at: 1235)
+        #expect(h.scheduler.nextFire[a.id] == h.at(1190 + Scheduler.spacing))
+        h.tick(at: 1190 + Scheduler.spacing - 1)
+        #expect(h.presenter.nudges.count == 1)
+        h.tick(at: 1190 + Scheduler.spacing)
         #expect(h.presenter.nudges.count == 2)
+    }
+
+    @Test func reminderDueOneMinuteAfterAnotherWaitsFiveMinutes() {
+        let h = SchedulerHarness()
+        let a = SchedulerHarness.reminder("A", every: 20)
+        let b = SchedulerHarness.reminder("B", every: 21)
+        h.settings.reminders = [a, b]
+        h.reset()
+        h.tick(at: 1200)          // A
+        h.tick(at: 1260)          // B по плану, но только минута после A
+        #expect(h.presenter.nudges.count == 1)
+        h.tick(at: 1499)
+        #expect(h.presenter.nudges.count == 1)
+        h.tick(at: 1500)          // 5 минут после A
+        #expect(h.presenter.nudges.map { $0.map(\.id) } == [[a.id], [b.id]])
     }
 
     @Test func itemAfterSpacingWindowFiresAtOnce() {
@@ -119,8 +136,8 @@ struct SchedulerTests {
         h.settings.reminders = [a, b]
         h.reset()
         h.tick(at: 600)   // A
-        h.tick(at: 1200)  // B (A разнесён на 3 минуты позже)
-        h.tick(at: 1380)  // A
+        h.tick(at: 1200)  // B (A разнесён на 5 минут позже)
+        h.tick(at: 1500)  // A
         #expect(h.presenter.nudges.count == 3)
     }
 
@@ -549,18 +566,18 @@ struct SchedulerTests {
         h.tick(at: 4002)                    // 9: конец звонка
         #expect(h.scheduler.busyReason == nil)
         #expect(h.presenter.nudges.isEmpty)
-        // Просроченные: A (1200) → +30 с, B (1800) → +75 с, перерыв → после последнего слота + 30 с.
+        // Просроченные: A (1200) → +30 с, B (1800) → +5 мин после A, перерыв → после последнего слота + 30 с.
         #expect(h.scheduler.nextFire[a.id] == h.at(4002 + 30))
-        #expect(h.scheduler.nextFire[b.id] == h.at(4002 + 75))
-        #expect(h.scheduler.nextBreak == h.at(4002 + 120 + 30))
+        #expect(h.scheduler.nextFire[b.id] == h.at(4002 + 330))
+        #expect(h.scheduler.nextBreak == h.at(4002 + 630 + 30))
 
         h.tick(at: 4031)
         #expect(h.presenter.nudges.isEmpty)
         h.tick(at: 4032)
         #expect(h.presenter.nudges.count == 1)
-        h.tick(at: 4077)
+        h.tick(at: 4332)
         #expect(h.presenter.nudges.count == 2)
-        h.tick(at: 4152)
+        h.tick(at: 4662)
         #expect(h.presenter.breaks.count == 1)
     }
 

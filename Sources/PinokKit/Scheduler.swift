@@ -77,10 +77,10 @@ final class Scheduler {
     static let typingGrace: TimeInterval = 2.5
     static let maxNudgeDefer: TimeInterval = 20
     static let maxBreakDefer: TimeInterval = 30
-    /// Минимальная пауза между двумя напоминаниями подряд.
-    static let spacing: TimeInterval = 45
-    /// Напоминания не идут подряд: между ними минимум 3 минуты (+ до 2 минут случайно).
-    static let minGap: TimeInterval = 180
+    /// После любого показа следующее напоминание ждёт минимум 5 минут, даже если его срок уже наступил.
+    static let spacing: TimeInterval = 300
+    /// При планировании напоминания тоже не ставим ближе 5 минут друг к другу (+ до 2 минут случайно).
+    static let minGap: TimeInterval = spacing
     static let maxJitter: TimeInterval = 120
 
     init(settings: AppSettings? = nil,
