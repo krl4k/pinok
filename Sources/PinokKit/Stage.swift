@@ -36,6 +36,14 @@ enum Stage {
             case "break":
                 BreakController.demo.autoCheckForDemo = true
                 BreakController.demo.show(seconds: 272, demo: false, frame: frame) { _ in }
+            case "dayend":
+                let session = DayEndSession(items: AppSettings.shared.dayEndItems)
+                DayEndController.demo.show(session, demo: false, frame: frame) { _ in }
+                for i in 0..<2 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6 + Double(i) * 1.1) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { session.toggle(i) }
+                    }
+                }
             default:
                 let tpl = ReminderLibrary.template(kind) ?? ReminderLibrary.template("posture")!
                 let reminders = kind == "set"
@@ -44,7 +52,7 @@ enum Stage {
                 NudgeController().showRetained(reminders, frame: frame)
             }
         }
-        total = kind == "break" ? 7.5 : (kind == "onboarding" ? 7.5 : 5.5)
+        total = kind == "break" || kind == "dayend" ? 7.5 : (kind == "onboarding" ? 7.5 : 5.5)
         DispatchQueue.main.asyncAfter(deadline: .now() + total) { exit(0) }
     }
 }
@@ -61,6 +69,10 @@ extension NudgeController {
 
 extension BreakController {
     @MainActor static let demo = BreakController()
+}
+
+extension DayEndController {
+    @MainActor static let demo = DayEndController()
 }
 
 /// Обезличенный «рабочий стол»: обои и окно редактора.

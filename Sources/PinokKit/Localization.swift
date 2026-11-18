@@ -319,6 +319,41 @@ enum L10n {
         "A reminder in a combo that is on does not show alone.": "Напоминание из включённого комбо не показывается отдельно.",
         "This reminder is in the combo “%@”. It shows with the combo.": "Это напоминание входит в комбо «%@». Оно показывается вместе с ним.",
         "Select 2 or more reminders.": "Выбери 2 или больше напоминаний.",
+
+        // Конец рабочего дня
+        "Workday": "Рабочий день",
+        "End of the day": "Конец дня",
+        "Pinok tells you when to stop work. Then it shows your list for the end of the day.":
+            "Pinok скажет, когда пора заканчивать работу, и покажет список дел на конец дня.",
+        "End time": "Конец работы",
+        "Days": "Дни",
+        "You can select more than one.": "Можно выбрать несколько.",
+        "List for the end of the day": "Список на конец дня",
+        "New step": "Новый пункт",
+        "Remove step": "Удалить пункт",
+        "Add step": "Добавить пункт",
+        "At the end time, Pinok shows this list on the screen. Click each step when you do it.":
+            "В конце дня Pinok покажет этот список на экране. Отмечай каждый пункт, когда сделаешь его.",
+        "Show the list again after": "Показать список снова через",
+        "Click Do the steps to close the list for this time.": "Кнопка «Выполнить пункты» закрывает список на это время.",
+        "Write what you did today": "Записать, что сделано сегодня",
+        "Write where you stopped": "Записать, на чём остановилась работа",
+        "Write a to-do list for tomorrow": "Написать список дел на завтра",
+        "Close the work apps": "Закрыть рабочие приложения",
+        "The workday is over": "Рабочий день закончен",
+        "Do these steps. Then stop work.": "Сделай эти пункты и заканчивай работу.",
+        "Do the steps": "Выполнить пункты",
+        "End the day": "Закончить день",
+        "Pinok will show this list again in %ld min.": "Pinok покажет этот список снова через %ld мин.",
+        "Busy?": "Очень занят?",
+        "Skip today": "Пропустить сегодня",
+        "+%ld h": "+%ld ч",
+        "The workday ends in %@": "Рабочий день закончится через %@",
+        "Show the list": "Показать список",
+        "Pinok waits until tomorrow": "Pinok ждёт до завтра",
+        "Workday ends at %@": "Рабочий день до %@",
+        "Move": "Перенести",
+        "OK": "ОК",
     ]
 }
 

@@ -44,4 +44,13 @@ final class FakePresenter: ReminderPresenter {
     func showCursorCountdown(breakAt: Date) { cursorCountdowns.append(breakAt) }
     func hideHints() { hideHintsCount += 1 }
     func playSound(_ name: String) { sounds.append(name) }
+
+    var dayEndWarnings: [(endAt: Date, postpone: (Int) -> Void, skip: () -> Void)] = []
+    var dayEnds: [(session: DayEndSession, demo: Bool, completion: (DayEndOutcome) -> Void)] = []
+    func showDayEndWarning(endAt: Date, onPostpone: @escaping (Int) -> Void, onSkip: @escaping () -> Void) {
+        dayEndWarnings.append((endAt, onPostpone, onSkip))
+    }
+    func showDayEnd(_ session: DayEndSession, demo: Bool, completion: @escaping (DayEndOutcome) -> Void) {
+        dayEnds.append((session, demo, completion))
+    }
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 import Observation
 
-enum TimingKind { case reminders, breaks }
+enum TimingKind { case reminders, breaks, dayEnd }
 
 enum ArrowColor: String, CaseIterable, Identifiable {
     case white, mint, blue, orange
@@ -104,6 +104,32 @@ final class AppSettings {
     /// Не заканчивать перерыв по времени, пока список не отмечен.
     var breakRequireList: Bool { didSet { d.set(breakRequireList, forKey: "breakRequireList") } }
 
+    // MARK: Конец рабочего дня
+    var dayEndEnabled: Bool { didSet { d.set(dayEndEnabled, forKey: "dayEndEnabled"); onTimingChange?(.dayEnd) } }
+    /// Во сколько заканчивать работу: минуты от полуночи.
+    var dayEndTime: Int { didSet { d.set(dayEndTime, forKey: "dayEndTime"); onTimingChange?(.dayEnd) } }
+    /// Рабочие дни: номера как в Calendar (1 — воскресенье, 2 — понедельник…).
+    var dayEndDays: [Int] { didSet { d.set(dayEndDays, forKey: "dayEndDays"); onTimingChange?(.dayEnd) } }
+    /// За сколько минут предупредить. Можно выбрать несколько; пусто — не предупреждать.
+    var dayEndWarnings: [Int] { didSet { d.set(dayEndWarnings, forKey: "dayEndWarnings"); onTimingChange?(.dayEnd) } }
+    /// Через сколько минут снова показать список, если пошёл его делать.
+    var dayEndSnooze: Int { didSet { d.set(dayEndSnooze, forKey: "dayEndSnooze") } }
+    /// Пункты списка на конец дня.
+    var dayEndItems: [String] { didSet { d.set(dayEndItems, forKey: "dayEndItems") } }
+    var dayEndSound: String { didSet { d.set(dayEndSound, forKey: "dayEndSound") } }
+    /// Не настройка, а состояние: когда рабочий день закрыли (чтобы после перезапуска не показать снова).
+    var dayEndClosedOn: Date? {
+        didSet { d.set(dayEndClosedOn?.timeIntervalSince1970 ?? 0, forKey: "dayEndClosedOn") }
+    }
+
+    /// Пункты по умолчанию. Показываем через t(), поэтому они переводятся.
+    static let defaultDayEndItems = [
+        "Write what you did today",
+        "Write where you stopped",
+        "Write a to-do list for tomorrow",
+        "Close the work apps",
+    ]
+
     /// `defaults` — для тестов можно передать отдельный UserDefaults.
     init(defaults: UserDefaults = .standard) {
         d = defaults
@@ -140,6 +166,13 @@ final class AppSettings {
             "breakWarning": 60,
             "breakStartSound": "melody.jingle",
             "breakEndSound": "melody.done",
+            "dayEndEnabled": false,
+            "dayEndTime": 18 * 60,
+            "dayEndDays": [2, 3, 4, 5, 6],
+            "dayEndWarnings": [30, 5],
+            "dayEndSnooze": 5,
+            "dayEndItems": Self.defaultDayEndItems,
+            "dayEndSound": "melody.done",
         ])
 
         let lang = AppLanguage(rawValue: d.string(forKey: "language") ?? "") ?? .system
@@ -187,6 +220,16 @@ final class AppSettings {
         breakExercises = (d.stringArray(forKey: "breakExercises") ?? []).compactMap(BreakExercise.init(rawValue:))
         breakExerciseCount = d.integer(forKey: "breakExerciseCount")
         breakRequireList = d.bool(forKey: "breakRequireList")
+
+        dayEndEnabled = d.bool(forKey: "dayEndEnabled")
+        dayEndTime = d.integer(forKey: "dayEndTime")
+        dayEndDays = (d.array(forKey: "dayEndDays") as? [Int]) ?? [2, 3, 4, 5, 6]
+        dayEndWarnings = (d.array(forKey: "dayEndWarnings") as? [Int]) ?? [30, 5]
+        dayEndSnooze = d.integer(forKey: "dayEndSnooze")
+        dayEndItems = d.stringArray(forKey: "dayEndItems") ?? Self.defaultDayEndItems
+        dayEndSound = d.string(forKey: "dayEndSound") ?? ""
+        let closed = d.double(forKey: "dayEndClosedOn")
+        dayEndClosedOn = closed > 0 ? Date(timeIntervalSince1970: closed) : nil
     }
 
     /// Читает напоминания. Если их ещё нет — собирает из старых настроек осанки и языка.

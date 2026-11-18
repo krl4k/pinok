@@ -362,13 +362,16 @@ func formatCountdown(_ interval: TimeInterval) -> String {
 
 struct PillButtonStyle: ButtonStyle {
     var prominent = false
+    /// Крупная кнопка для главного действия: в неё легче попасть.
+    var large = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 15, weight: .medium, design: .rounded))
+            .font(.system(size: large ? 20 : 15, weight: large ? .semibold : .medium, design: .rounded))
             .foregroundStyle(.white)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 11)
+            .frame(minWidth: large ? 200 : nil)
+            .padding(.horizontal, large ? 30 : 22)
+            .padding(.vertical, large ? 18 : 11)
             .background(Capsule().fill(.white.opacity(prominent ? 0.28 : 0.14)))
             .overlay(Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 1))
             .contentShape(Capsule())

@@ -54,6 +54,15 @@ struct SettingsBackup: Codable, Equatable {
     var breakExerciseCount: Int?
     var breakRequireList: Bool?
 
+    // Конец рабочего дня
+    var dayEndEnabled: Bool?
+    var dayEndTime: Int?
+    var dayEndDays: [Int]?
+    var dayEndWarnings: [Int]?
+    var dayEndSnooze: Int?
+    var dayEndItems: [String]?
+    var dayEndSound: String?
+
     /// Свои файлы: ключ → содержимое в base64.
     var files: [String: String]?
 
@@ -126,6 +135,13 @@ extension AppSettings {
         b.breakExercises = breakExercises.map(\.rawValue)
         b.breakExerciseCount = breakExerciseCount
         b.breakRequireList = breakRequireList
+        b.dayEndEnabled = dayEndEnabled
+        b.dayEndTime = dayEndTime
+        b.dayEndDays = dayEndDays
+        b.dayEndWarnings = dayEndWarnings
+        b.dayEndSnooze = dayEndSnooze
+        b.dayEndItems = dayEndItems
+        b.dayEndSound = embedSound(dayEndSound)
         b.files = files.isEmpty ? nil : files
 
         let encoder = JSONEncoder()
@@ -218,6 +234,13 @@ extension AppSettings {
         if let v = b.breakExercises { breakExercises = v.compactMap(BreakExercise.init(rawValue:)) }
         if let v = b.breakExerciseCount { breakExerciseCount = max(1, v) }
         if let v = b.breakRequireList { breakRequireList = v }
+        if let v = b.dayEndTime { dayEndTime = min(24 * 60 - 1, max(0, v)) }
+        if let v = b.dayEndDays { dayEndDays = v.filter { (1...7).contains($0) } }
+        if let v = b.dayEndWarnings { dayEndWarnings = v.filter { $0 > 0 } }
+        if let v = b.dayEndSnooze { dayEndSnooze = max(1, v) }
+        if let v = b.dayEndItems { dayEndItems = v }
+        if let v = b.dayEndSound { dayEndSound = restoreSound(v) }
+        if let v = b.dayEndEnabled { dayEndEnabled = v }
     }
 
     /// Куда кладём свои файлы из импорта.

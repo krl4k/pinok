@@ -11,6 +11,7 @@ Pinok is a small Mac app in the menu bar. It tells you to sit up straight, keep 
 - **Short reminders.** An animation shows on the screen for a few seconds. You can continue to type and click. There are 7 reminders: posture, tongue, blink, look far away, water, breathe and hand cream. You can also make your own reminder.
 - **Combos.** Some reminders show together, so you stop one time, not three.
 - **Breaks.** The screen locks for 1 to 10 minutes and shows a list of exercises. You can skip the break or move it by 1, 5 or 10 minutes.
+- **End of the day.** Set the time when you stop work. Pinok warns you before this time. Then it shows your list for the end of the day: what you did, where you stopped, what to do tomorrow. If you are busy, move the end by 10, 30 or 60 minutes.
 - **Smart pause.** The app waits when you type, when you are in a call or when a video is in full screen. It stops when you are away.
 - **Settings file.** Export all settings to one file and import it on another Mac. Your own icons and sounds go into the file too.
 - English and Russian.

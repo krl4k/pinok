@@ -29,11 +29,12 @@ struct SidebarModelTests {
             s.sets = [combo]
 
             let groups = SidebarModel.groups(for: s)
-            #expect(groups.map(\.title) == [nil, "Short reminders", "Combos", "Long breaks"])
+            #expect(groups.map(\.title) == [nil, "Short reminders", "Combos", "Long breaks", "Workday"])
             #expect(groups[0].pages == [.general])
             #expect(groups[1].pages == s.reminders.map { .reminder($0.id) } + [.library])
             #expect(groups[2].pages == [.set(combo.id), .newSet])
             #expect(groups[3].pages == [.breaks])
+            #expect(groups[4].pages == [.dayEnd])
         }
     }
 

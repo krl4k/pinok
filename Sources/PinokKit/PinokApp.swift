@@ -218,7 +218,10 @@ struct MenuContent: View {
     private var nowTab: some View {
         VStack(spacing: 14) {
             hero
-            if !scheduler.isPaused && !scheduler.onBreak { pauseRow }
+            if !scheduler.isPaused && !scheduler.onBreak && !scheduler.dayEndActive { pauseRow }
+            // Строка о конце дня — в самом низу и только за последний час.
+            if let end = scheduler.upcomingDayEnd, !scheduler.onBreak,
+               end.timeIntervalSince(scheduler.now) <= 3600 { dayEndRow(end) }
         }
     }
 
@@ -227,10 +230,31 @@ struct MenuContent: View {
         if scheduler.onBreak {
             Hero(symbol: "cup.and.saucer.fill", tint: SettingsPage.breaks.colors[0],
                  caption: nil, big: t("Break time"))
+        } else if scheduler.onDayEnd {
+            Hero(symbol: "sunset.fill", tint: SettingsPage.dayEnd.colors[0], caption: nil,
+                 big: t("The workday is over"), bigSize: 26)
+        } else if scheduler.dayEndActive {
+            VStack(spacing: 12) {
+                Hero(symbol: "sunset.fill", tint: SettingsPage.dayEnd.colors[0], caption: nil,
+                     big: t("The workday is over"), bigSize: 26)
+                HStack(spacing: 6) {
+                    Button(t("Show the list")) { scheduler.showDayEndNow(); closePanel() }
+                        .buttonStyle(PanelPill(filled: true))
+                    ForEach(dayEndPostponeOptions, id: \.self) { m in
+                        Button(dayEndPostponeLabel(m)) { scheduler.postponeDayEnd(minutes: m) }
+                            .buttonStyle(PanelPill(filled: false))
+                    }
+                }
+            }
         } else if let until = scheduler.pausedUntil {
             VStack(spacing: 12) {
-                Hero(symbol: "pause.circle.fill", tint: .orange, caption: t("Pause ends in"),
-                     big: formatCountdown(until.timeIntervalSince(scheduler.now)), monospaced: true)
+                if scheduler.isDayClosed, settings.dayEndEnabled {
+                    Hero(symbol: "moon.stars.fill", tint: .indigo, caption: t("Pinok waits until tomorrow"),
+                         big: t("The workday is over"), bigSize: 26)
+                } else {
+                    Hero(symbol: "pause.circle.fill", tint: .orange, caption: t("Pause ends in"),
+                         big: formatCountdown(until.timeIntervalSince(scheduler.now)), monospaced: true)
+                }
                 Button(t("Resume")) { scheduler.resume() }
                     .buttonStyle(PanelPill(filled: true))
             }
@@ -257,6 +281,38 @@ struct MenuContent: View {
             Hero(symbol: "checkmark.circle.fill", tint: .green, caption: t("Breaks are off"),
                  big: t("Pinok is on"), bigSize: 28)
         }
+    }
+
+    /// «Рабочий день до 18:00» и меню: перенести или пропустить сегодня.
+    private func dayEndRow(_ end: Date) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sunset.fill").foregroundStyle(SettingsPage.dayEnd.colors[0])
+            Text(t("Workday ends at %@", Self.timeText(end)))
+                .font(.callout)
+            Spacer()
+            Menu {
+                ForEach(dayEndPostponeOptions, id: \.self) { m in
+                    Button(dayEndPostponeLabel(m)) { scheduler.postponeDayEnd(minutes: m) }
+                }
+                Divider()
+                Button(t("Skip today")) { scheduler.skipDayEnd() }
+            } label: {
+                Text(t("Move"))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.05)))
+    }
+
+    /// «18:00» или «6:00 PM» — по языку приложения.
+    private static func timeText(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: L10n.isRussian ? "ru_RU" : "en_US")
+        f.timeStyle = .short
+        f.dateStyle = .none
+        return f.string(from: date)
     }
 
     /// «Пауза»: подпись и три квадратные кнопки — 1, 5 и 30 минут.

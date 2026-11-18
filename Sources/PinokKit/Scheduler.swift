@@ -12,6 +12,10 @@ protocol ReminderPresenter: AnyObject {
     func showCursorCountdown(breakAt: Date)
     func hideHints()
     func playSound(_ name: String)
+    /// Плашка «Рабочий день закончится через …».
+    func showDayEndWarning(endAt: Date, onPostpone: @escaping (Int) -> Void, onSkip: @escaping () -> Void)
+    /// Экран конца рабочего дня со списком дел.
+    func showDayEnd(_ session: DayEndSession, demo: Bool, completion: @escaping (DayEndOutcome) -> Void)
 }
 
 /// Настоящие окна и звуки.
@@ -21,6 +25,8 @@ final class LivePresenter: ReminderPresenter {
     private let breaks = BreakController()
     private let warning = WarningController()
     private let cursor = CursorCountdownController()
+    private let dayEnd = DayEndController()
+    private let dayEndWarning = DayEndWarningController()
 
     var isShowingNudge: Bool { nudge.isShowing }
     func showNudge(_ reminders: [Reminder], duration: TimeInterval) { nudge.show(reminders, duration: duration) }
@@ -33,6 +39,13 @@ final class LivePresenter: ReminderPresenter {
     func showCursorCountdown(breakAt: Date) { cursor.show(breakAt: breakAt) }
     func hideHints() { warning.hide(); cursor.hide() }
     func playSound(_ name: String) { Sounds.play(name) }
+    func showDayEndWarning(endAt: Date, onPostpone: @escaping (Int) -> Void, onSkip: @escaping () -> Void) {
+        dayEndWarning.show(endAt: endAt, onPostpone: onPostpone, onSkip: onSkip)
+    }
+    func showDayEnd(_ session: DayEndSession, demo: Bool, completion: @escaping (DayEndOutcome) -> Void) {
+        dayEndWarning.hide()
+        dayEnd.show(session, demo: demo, completion: completion)
+    }
 }
 
 /// Сердце приложения: считает время до напоминаний и перерывов, ставит паузы,
@@ -52,6 +65,10 @@ final class Scheduler {
     private(set) var suspendReasons: Set<SuspendReason> = []
     var isSuspended: Bool { !suspendReasons.isEmpty }
     private(set) var onBreak = false
+    /// На экране список конца рабочего дня.
+    private(set) var onDayEnd = false
+    /// Рабочий день уже кончился, а список ещё не закрыт: напоминания и перерывы молчат.
+    private(set) var dayEndActive = false
     /// Напоминания придержаны: идёт звонок или полноэкранное видео.
     private(set) var busyReason: BusyReason?
     /// Обновляется каждую секунду, чтобы UI перерисовывал отсчёт.
@@ -72,6 +89,14 @@ final class Scheduler {
     @ObservationIgnored private var lastOverlay: Date?
     @ObservationIgnored private var knownIntervals: [UUID: Int] = [:]
     @ObservationIgnored private var tickCount = 0
+    /// Состояние конца дня на сегодня (сбрасывается в новый день).
+    @ObservationIgnored private var dayEndDay: Date?
+    @ObservationIgnored private var dayEndWarned: Set<Int> = []
+    @ObservationIgnored private(set) var dayEndShowAgainAt: Date?
+    /// Конец дня перенесли («+30 мин», если очень занят) — новое время только на сегодня.
+    private(set) var dayEndOverride: Date?
+    /// Отметки в списке сохраняются, пока человек ходит их делать.
+    @ObservationIgnored private(set) var dayEndSession: DayEndSession?
 
     /// Сколько ждать, пока пользователь допечатает (smart timing).
     static let typingGrace: TimeInterval = 2.5
@@ -117,6 +142,7 @@ final class Scheduler {
             switch kind {
             case .reminders: self?.syncReminders()
             case .breaks: self?.resetBreak()
+            case .dayEnd: self?.dayEndSettingsChanged()
             }
         }
         let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -204,11 +230,17 @@ final class Scheduler {
         countActiveTime(since: previous)
 
         if let until = pausedUntil {
-            guard now >= until else { return }
+            guard now >= until else {
+                // Пауза не отменяет конец рабочего дня. Но во время звонка и когда никого нет — ждём.
+                if !isSuspended, !onBreak, !onDayEnd, idleSeconds() < TimeInterval(settings.idleMinutes * 60) {
+                    _ = tickDayEnd(typing: false, canShow: { self.detectBusy(self.settings) == nil })
+                }
+                return
+            }
             pausedUntil = nil
             resetAll()
         }
-        if isSuspended || onBreak { return }
+        if isSuspended || onBreak || onDayEnd { return }
 
         // Простой: если никого нет за компьютером — ждём, по возвращении начинаем заново.
         let idle = idleSeconds()
@@ -229,6 +261,9 @@ final class Scheduler {
 
         // Smart timing: пока человек печатает — даём ему закончить.
         let typing = settings.smartTiming && idle < Self.typingGrace
+
+        // Рабочий день кончился — перерывы и напоминания больше не нужны.
+        if tickDayEnd(typing: typing, canShow: { true }) { return }
 
         if let nb = nextBreak {
             let left = nb.timeIntervalSince(now)
@@ -415,6 +450,171 @@ final class Scheduler {
         resetAll()
     }
 
+    // MARK: - Конец рабочего дня
+
+    /// Когда заканчивается рабочий день в этот день. nil — функция выключена или день не рабочий.
+    func dayEndDate(on date: Date) -> Date? {
+        guard settings.dayEndEnabled else { return nil }
+        let cal = Calendar.current
+        guard settings.dayEndDays.contains(cal.component(.weekday, from: date)) else { return nil }
+        return cal.date(bySettingHour: settings.dayEndTime / 60, minute: settings.dayEndTime % 60,
+                        second: 0, of: date)
+    }
+
+    /// Сегодня рабочий день уже закрыт («Закончить день» или «Пропустить сегодня»).
+    var isDayClosed: Bool {
+        settings.dayEndClosedOn.map { Calendar.current.isDate($0, inSameDayAs: now) } ?? false
+    }
+
+    /// Ближайший конец рабочего дня сегодня — для панели. nil, если он уже прошёл или закрыт.
+    var upcomingDayEnd: Date? {
+        guard !isDayClosed, let end = todayDayEnd, end > now else { return nil }
+        return end
+    }
+
+    /// Конец дня сегодня с учётом переноса.
+    var todayDayEnd: Date? {
+        guard let planned = dayEndDate(on: now) else { return nil }
+        return dayEndOverride ?? planned
+    }
+
+    private var dayEndWarnings: [Int] {
+        settings.dayEndWarnings.filter { $0 > 0 }
+    }
+
+    private func dayEndNewDayIfNeeded() {
+        let day = Calendar.current.startOfDay(for: now)
+        guard dayEndDay != day else { return }
+        dayEndDay = day
+        dayEndWarned = []
+        dayEndShowAgainAt = nil
+        dayEndSession = nil
+        dayEndOverride = nil
+    }
+
+    /// Предупреждения и экран конца дня. Возвращает true, если рабочий день уже кончился.
+    /// `canShow` проверяем только когда есть что показать (в паузе это проверка звонка).
+    private func tickDayEnd(typing: Bool, canShow: () -> Bool) -> Bool {
+        dayEndNewDayIfNeeded()
+        guard !isDayClosed, let end = todayDayEnd else {
+            if dayEndActive { dayEndActive = false }
+            return false
+        }
+        let left = end.timeIntervalSince(now)
+        if left <= 0 {
+            if !dayEndActive { dayEndActive = true }
+            let waitOver = dayEndShowAgainAt.map { now >= $0 } ?? true
+            // Человек печатает — даём закончить фразу, как перед перерывом.
+            let letFinish = typing && -left < Self.maxBreakDefer
+            if waitOver, !letFinish, canShow() { showDayEnd() }
+            return true
+        }
+        if dayEndActive { dayEndActive = false }
+        // Несколько предупреждений сразу (Mac проснулся за 3 минуты до конца) — показываем одно.
+        let due = dayEndWarnings.filter { left <= TimeInterval($0 * 60) && !dayEndWarned.contains($0) }
+        if !due.isEmpty, canShow() {
+            dayEndWarned.formUnion(due)
+            presenter.showDayEndWarning(endAt: end,
+                                        onPostpone: { [weak self] m in self?.postponeDayEnd(minutes: m) },
+                                        onSkip: { [weak self] in self?.skipDayEnd() })
+            presenter.playSound(settings.dayEndSound)
+        }
+        return false
+    }
+
+    /// Показать список конца дня. Отметки сохраняются между показами.
+    func showDayEnd() {
+        guard !onDayEnd, !onBreak else { return }
+        presenter.hideHints()
+        let session = dayEndSession ?? DayEndSession(items: settings.dayEndItems)
+        dayEndSession = session
+        onDayEnd = true
+        dayEndActive = true
+        presenter.playSound(settings.dayEndSound)
+        presenter.showDayEnd(session, demo: false) { [weak self] outcome in
+            self?.dayEndFinished(outcome)
+        }
+    }
+
+    func dayEndFinished(_ outcome: DayEndOutcome) {
+        onDayEnd = false
+        switch outcome {
+        case .later:
+            dayEndShowAgainAt = clock().addingTimeInterval(TimeInterval(max(1, settings.dayEndSnooze) * 60))
+        case .done:
+            closeDay()
+            pauseUntilTomorrow()
+        case .skipped:
+            closeDay()
+            resetAll()
+        case .postponed(let minutes):
+            postponeDayEnd(minutes: minutes)
+        }
+    }
+
+    /// «+N мин»: очень занят. До конца дня — прибавляем к его времени, после — к «сейчас».
+    /// Пока ждём, напоминания и перерывы идут как обычно. Последнее предупреждение придёт снова.
+    func postponeDayEnd(minutes: Int) {
+        guard !isDayClosed, let end = todayDayEnd else { return }
+        now = clock()
+        let wasOver = end <= now
+        let newEnd = max(end, now).addingTimeInterval(TimeInterval(minutes * 60))
+        dayEndOverride = newEnd
+        dayEndShowAgainAt = nil
+        dayEndActive = false
+        let left = newEnd.timeIntervalSince(now)
+        dayEndWarned = Set(dayEndWarnings.filter { left <= TimeInterval($0 * 60) })
+        // Пока список был на экране, перерывы стояли — начинаем их отсчёт заново.
+        if wasOver { resetAll() }
+    }
+
+    /// «Пропустить сегодня» с плашки или из панели.
+    func skipDayEnd() {
+        guard !isDayClosed, !onDayEnd else { return }
+        let wasOver = dayEndActive
+        closeDay()
+        if wasOver { resetAll() }
+    }
+
+    private func closeDay() {
+        settings.dayEndClosedOn = clock()
+        dayEndActive = false
+        dayEndShowAgainAt = nil
+        dayEndSession = nil
+    }
+
+    /// Показать список из панели, не дожидаясь «показать снова».
+    func showDayEndNow() {
+        dayEndShowAgainAt = nil
+        showDayEnd()
+    }
+
+    func previewDayEnd() {
+        guard !onDayEnd, !onBreak else { return }
+        presenter.playSound(settings.dayEndSound)
+        presenter.showDayEnd(DayEndSession(items: settings.dayEndItems), demo: true) { _ in }
+    }
+
+    /// Поменяли время, дни или включили функцию. Если время уже прошло — сегодня экран не показываем:
+    /// человек сейчас в настройках, а не заканчивает работу. Уже начавшиеся предупреждения тоже не показываем.
+    func dayEndSettingsChanged() {
+        now = clock()
+        dayEndNewDayIfNeeded()
+        dayEndShowAgainAt = nil
+        dayEndOverride = nil
+        guard !onDayEnd, let end = dayEndDate(on: now) else {
+            dayEndActive = false
+            return
+        }
+        let left = end.timeIntervalSince(now)
+        if left <= 0, !isDayClosed {
+            settings.dayEndClosedOn = now
+            dayEndSession = nil
+        }
+        dayEndWarned = Set(dayEndWarnings.filter { left <= TimeInterval($0 * 60) })
+        dayEndActive = false
+    }
+
     // MARK: - Сон и блокировка
 
     private func observeSystem() {
@@ -481,7 +681,7 @@ final class Scheduler {
 
     /// Текст рядом с иконкой в трее: минуты до ближайшего события.
     var menuBarText: String? {
-        if isHolding || isSuspended || isIdle { return nil }
+        if isHolding || isSuspended || isIdle || dayEndActive { return nil }
         if onBreak { return t("break") }
         // Только до перерыва: короткие напоминания идут без отсчёта.
         guard settings.breakEnabled, let nb = nextBreak else { return nil }

@@ -5,7 +5,7 @@ import SwiftUI
 // MARK: - Разделы
 
 enum SettingsPage: Hashable {
-    case general, reminder(UUID), library, set(UUID), newSet, breaks
+    case general, reminder(UUID), library, set(UUID), newSet, breaks, dayEnd
 
     /// Для `--page <name>`: general, library, breaks, stats, appearance, sounds или id шаблона (posture, tongue…).
     @MainActor
@@ -14,6 +14,7 @@ enum SettingsPage: Hashable {
         case "general": self = .general
         case "library": self = .library
         case "breaks": self = .breaks
+        case "dayend": self = .dayEnd
         default:
             guard let r = AppSettings.shared.reminders.first(where: { $0.template == argument }) else { return nil }
             self = .reminder(r.id)
@@ -41,6 +42,7 @@ enum SettingsPage: Hashable {
         case .set: reminderSet?.name ?? t("Combo")
         case .newSet: t("New combo")
         case .breaks: t("Breaks")
+        case .dayEnd: t("End of the day")
         }
     }
 
@@ -53,6 +55,7 @@ enum SettingsPage: Hashable {
         case .set: "square.stack.3d.up.fill"
         case .newSet: "plus"
         case .breaks: "cup.and.saucer.fill"
+        case .dayEnd: "sunset.fill"
         }
     }
 
@@ -64,6 +67,7 @@ enum SettingsPage: Hashable {
         case .library: [Color(red: 0.20, green: 0.72, blue: 0.45), Color(red: 0.25, green: 0.62, blue: 0.85)]
         case .set, .newSet: [Color(red: 0.55, green: 0.35, blue: 0.95), Color(red: 0.30, green: 0.70, blue: 0.95)]
         case .breaks: [Color(red: 1.00, green: 0.55, blue: 0.22), Color(red: 1.00, green: 0.80, blue: 0.36)]
+        case .dayEnd: [Color(red: 0.98, green: 0.45, blue: 0.35), Color(red: 0.45, green: 0.30, blue: 0.75)]
         }
     }
 
@@ -86,6 +90,7 @@ struct SidebarModel {
             Group(title: t("Short reminders"), pages: settings.reminders.map { .reminder($0.id) } + [.library]),
             Group(title: t("Combos"), pages: settings.sets.map { .set($0.id) } + [.newSet]),
             Group(title: t("Long breaks"), pages: [.breaks]),
+            Group(title: t("Workday"), pages: [.dayEnd]),
         ]
     }
 
@@ -102,6 +107,7 @@ struct SidebarModel {
         case .reminder(let id): settings.reminders.first { $0.id == id }?.enabled
         case .set(let id): settings.sets.first { $0.id == id }?.enabled
         case .breaks: settings.breakEnabled
+        case .dayEnd: settings.dayEndEnabled
         default: nil
         }
     }
@@ -171,6 +177,7 @@ struct SettingsView: View {
         case .reminder(let id): reminderOn(id)
         case .set(let id): comboOn(id)
         case .breaks: Binding(get: { settings.breakEnabled }, set: { settings.breakEnabled = $0 })
+        case .dayEnd: Binding(get: { settings.dayEndEnabled }, set: { settings.dayEndEnabled = $0 })
         default: nil
         }
     }
@@ -224,6 +231,7 @@ struct SettingsView: View {
         case .set(let id): SetPage(id: id, onRemove: { page = .newSet })
         case .newSet: NewSetPage(onOpen: { page = .set($0) })
         case .breaks: BreaksPage()
+        case .dayEnd: DayEndPage()
         }
     }
 }
@@ -906,6 +914,134 @@ private struct BreaksPage: View {
     }
 }
 
+// MARK: - Конец рабочего дня
+
+private struct DayEndPage: View {
+    @Bindable private var s = AppSettings.shared
+    private let page = SettingsPage.dayEnd
+
+    var body: some View {
+        PageHeader(page: page,
+                   subtitle: t("Pinok tells you when to stop work. Then it shows your list for the end of the day."),
+                   isOn: $s.dayEndEnabled,
+                   action: { Scheduler.shared.previewDayEnd() })
+
+        Card {
+            Row(title: t("End time")) {
+                DatePicker("", selection: timeBinding, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .datePickerStyle(.field)
+                    .environment(\.locale, Locale(identifier: L10n.isRussian ? "ru_RU" : "en_GB"))
+                    .fixedSize()
+            }
+            CardDivider()
+            Row(title: t("Days")) { WeekdayPicker(days: $s.dayEndDays, tint: page.tint) }
+            CardDivider()
+            Row(title: t("Warn me"), subtitle: t("You can select more than one.")) {
+                MultiChipPicker(options: [5, 10, 15, 30, 60], selection: $s.dayEndWarnings, tint: page.tint) {
+                    t("%ld min", $0)
+                }
+            }
+        }
+        .disabled(!s.dayEndEnabled)
+
+        SectionTitle(t("List for the end of the day"))
+        Card {
+            ForEach(Array(s.dayEndItems.enumerated()), id: \.offset) { index, _ in
+                if index > 0 { CardDivider() }
+                HStack(spacing: 12) {
+                    Image(systemName: "\(min(index + 1, 50)).circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(page.tint)
+                    TextField(t("New step"), text: itemBinding(index))
+                        .textFieldStyle(.plain)
+                    Button {
+                        withAnimation(.snappy) { _ = s.dayEndItems.remove(at: index) }
+                    } label: {
+                        Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(t("Remove step"))
+                    .accessibilityLabel(t("Remove step"))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+            }
+            if !s.dayEndItems.isEmpty { CardDivider() }
+            Button {
+                withAnimation(.snappy) { s.dayEndItems.append("") }
+            } label: {
+                Label(t("Add step"), systemImage: "plus.circle.fill")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(page.tint)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+        FooterNote(t("At the end time, Pinok shows this list on the screen. Click each step when you do it."))
+
+        Card {
+            Row(title: t("Show the list again after"),
+                subtitle: t("Click Do the steps to close the list for this time.")) {
+                ChipPicker(options: [5, 10, 15], selection: $s.dayEndSnooze, tint: page.tint) { t("%ld min", $0) }
+            }
+            CardDivider()
+            SoundRow(title: t("Sound"), colors: page.colors, selection: $s.dayEndSound)
+        }
+    }
+
+    /// Время конца дня (минуты от полуночи) ↔ дата сегодня для DatePicker.
+    private var timeBinding: Binding<Date> {
+        Binding(
+            get: {
+                Calendar.current.date(bySettingHour: s.dayEndTime / 60, minute: s.dayEndTime % 60,
+                                      second: 0, of: Date()) ?? Date()
+            },
+            set: { date in
+                let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+                s.dayEndTime = (c.hour ?? 18) * 60 + (c.minute ?? 0)
+            })
+    }
+
+    /// Пункты по умолчанию хранятся по-английски — в поле показываем перевод.
+    private func itemBinding(_ index: Int) -> Binding<String> {
+        Binding(
+            get: { s.dayEndItems.indices.contains(index) ? t(s.dayEndItems[index]) : "" },
+            set: { v in if s.dayEndItems.indices.contains(index) { s.dayEndItems[index] = v } })
+    }
+}
+
+/// Дни недели кнопками, с понедельника. Номера — как в Calendar (1 — воскресенье).
+private struct WeekdayPicker: View {
+    @Binding var days: [Int]
+    var tint: Color
+
+    var body: some View {
+        var cal = Calendar(identifier: .gregorian)
+        cal.locale = Locale(identifier: L10n.isRussian ? "ru_RU" : "en_US")
+        let symbols = cal.shortStandaloneWeekdaySymbols
+        return HStack(spacing: 5) {
+            ForEach([2, 3, 4, 5, 6, 7, 1], id: \.self) { day in
+                let on = days.contains(day)
+                Text(symbols[day - 1].prefix(2).capitalized)
+                    .font(.system(size: 12.5, weight: on ? .semibold : .regular))
+                    .frame(width: 32, height: 26)
+                    .foregroundStyle(on ? Color.white : .primary)
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(on ? tint : Color.primary.opacity(0.07)))
+                    .contentShape(Rectangle())
+                    .choiceButton(symbols[day - 1], selected: on) {
+                        withAnimation(.snappy) {
+                            if on { days.removeAll { $0 == day } } else { days.append(day) }
+                        }
+                    }
+            }
+        }
+    }
+}
+
 private struct BackgroundPicker: View {
     @Bindable private var s = AppSettings.shared
     @State private var wallpaper: NSImage? = NSScreen.main
@@ -1509,6 +1645,38 @@ private struct ChipPicker<T: Hashable>: View {
                     .foregroundStyle(selected ? Color.white : Color.primary)
                     .contentShape(Capsule())
                     .choiceButton(label(option), selected: selected) { withAnimation(.snappy) { selection = option } }
+            }
+        }
+        .opacity(isEnabled ? 1 : 0.45)
+    }
+}
+
+/// Как ChipPicker, но можно выбрать несколько вариантов (или ни одного).
+private struct MultiChipPicker<T: Hashable>: View {
+    let options: [T]
+    @Binding var selection: [T]
+    var tint: Color = .accentColor
+    let label: (T) -> String
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(options, id: \.self) { option in
+                let selected = selection.contains(option)
+                Text(label(option))
+                    .font(.system(size: 12.5, weight: selected ? .semibold : .regular))
+                    .monospacedDigit()
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(selected ? tint : Color.primary.opacity(0.07)))
+                    .foregroundStyle(selected ? Color.white : Color.primary)
+                    .contentShape(Capsule())
+                    .choiceButton(label(option), selected: selected) {
+                        withAnimation(.snappy) {
+                            if selected { selection.removeAll { $0 == option } } else { selection.append(option) }
+                        }
+                    }
             }
         }
         .opacity(isEnabled ? 1 : 0.45)
