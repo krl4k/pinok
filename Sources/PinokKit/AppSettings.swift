@@ -117,9 +117,13 @@ final class AppSettings {
     /// Пункты списка на конец дня.
     var dayEndItems: [String] { didSet { d.set(dayEndItems, forKey: "dayEndItems") } }
     var dayEndSound: String { didSet { d.set(dayEndSound, forKey: "dayEndSound") } }
-    /// Не настройка, а состояние: когда рабочий день закрыли (чтобы после перезапуска не показать снова).
+    /// Не настройка, а состояние: в этот день конец дня пропустили — сегодня экран больше не показываем.
     var dayEndClosedOn: Date? {
         didSet { d.set(dayEndClosedOn?.timeIntervalSince1970 ?? 0, forKey: "dayEndClosedOn") }
+    }
+    /// Состояние: в этот день нажали «Закончить день». Если человек работает дальше, список вернётся.
+    var dayEndEndedOn: Date? {
+        didSet { d.set(dayEndEndedOn?.timeIntervalSince1970 ?? 0, forKey: "dayEndEndedOn") }
     }
 
     /// Пункты по умолчанию. Показываем через t(), поэтому они переводятся.
@@ -134,6 +138,7 @@ final class AppSettings {
     init(defaults: UserDefaults = .standard) {
         d = defaults
         Self.migrateFromUpright(into: d)
+        Self.removeOldStats(d)
         d.register(defaults: [
             "language": AppLanguage.system.rawValue,
             "showCountdown": true,
@@ -230,6 +235,8 @@ final class AppSettings {
         dayEndSound = d.string(forKey: "dayEndSound") ?? ""
         let closed = d.double(forKey: "dayEndClosedOn")
         dayEndClosedOn = closed > 0 ? Date(timeIntervalSince1970: closed) : nil
+        let ended = d.double(forKey: "dayEndEndedOn")
+        dayEndEndedOn = ended > 0 ? Date(timeIntervalSince1970: ended) : nil
     }
 
     /// Читает напоминания. Если их ещё нет — собирает из старых настроек осанки и языка.
@@ -295,6 +302,13 @@ final class AppSettings {
         if changed, let data = try? JSONEncoder().encode(reminders) { d.set(data, forKey: "reminders") }
         if d.string(forKey: "breakStartSound") == "Glass" { d.set("melody.jingle", forKey: "breakStartSound") }
         if d.string(forKey: "breakEndSound") == "Hero" { d.set("melody.done", forKey: "breakEndSound") }
+    }
+
+    /// Статистики больше нет. Один раз удаляем то, что она записала (время по дням и по приложениям).
+    static func removeOldStats(_ d: UserDefaults) {
+        guard !d.bool(forKey: "statsRemoved") else { return }
+        for key in d.dictionaryRepresentation().keys where key.hasPrefix("stats.") { d.removeObject(forKey: key) }
+        d.set(true, forKey: "statsRemoved")
     }
 
     /// Приложение раньше называлось Upright — один раз переносим его настройки.

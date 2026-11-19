@@ -240,13 +240,12 @@ struct SettingsView: View {
 
 private struct GeneralPage: View {
     @Bindable private var s = AppSettings.shared
-    private var stats = Stats.shared
     @State private var moreSmartPause = false
     @State private var backupMessage: String?
     @State private var pendingImport: URL?
 
     var body: some View {
-        PageHeader(page: .general, subtitle: t("Today: %ld reminders · %ld breaks", stats.total, stats.breaks))
+        PageHeader(page: .general, subtitle: t("Language, sounds and the smart pause."))
 
         Card {
             Row(title: t("Language")) {
@@ -990,6 +989,7 @@ private struct DayEndPage: View {
             CardDivider()
             SoundRow(title: t("Sound"), colors: page.colors, selection: $s.dayEndSound)
         }
+        FooterNote(t("If you work after you end the day, Pinok shows the list again after each 30 minutes of work."))
     }
 
     /// Время конца дня (минуты от полуночи) ↔ дата сегодня для DatePicker.

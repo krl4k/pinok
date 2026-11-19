@@ -67,7 +67,7 @@ final class Scheduler {
     private(set) var onBreak = false
     /// На экране список конца рабочего дня.
     private(set) var onDayEnd = false
-    /// Рабочий день уже кончился, а список ещё не закрыт: напоминания и перерывы молчат.
+    /// Время конца дня прошло, а день ещё не закончили. Напоминания и перерывы при этом идут.
     private(set) var dayEndActive = false
     /// Напоминания придержаны: идёт звонок или полноэкранное видео.
     private(set) var busyReason: BusyReason?
@@ -75,11 +75,9 @@ final class Scheduler {
     private(set) var now: Date
 
     @ObservationIgnored let settings: AppSettings
-    @ObservationIgnored private let stats: Stats
     @ObservationIgnored private let presenter: ReminderPresenter
     @ObservationIgnored private let clock: () -> Date
     @ObservationIgnored private let idleSeconds: () -> TimeInterval
-    @ObservationIgnored private let frontApp: @MainActor () -> String?
     /// Случайная добавка к разносу напоминаний (в тестах — 0).
     @ObservationIgnored private let jitter: () -> TimeInterval
     @ObservationIgnored private let detectBusy: @MainActor (AppSettings) -> BusyReason?
@@ -97,6 +95,11 @@ final class Scheduler {
     private(set) var dayEndOverride: Date?
     /// Отметки в списке сохраняются, пока человек ходит их делать.
     @ObservationIgnored private(set) var dayEndSession: DayEndSession?
+    /// Сколько человек проработал после «Закончить день» (только время за компьютером).
+    @ObservationIgnored private(set) var workAfterEnd: TimeInterval = 0
+    @ObservationIgnored private var dayEndLastTick: Date?
+    /// День закончили, а человек работает дальше: список возвращается после каждых 30 минут работы.
+    static let dayEndRepeat: TimeInterval = 30 * 60
 
     /// Сколько ждать, пока пользователь допечатает (smart timing).
     static let typingGrace: TimeInterval = 2.5
@@ -109,19 +112,15 @@ final class Scheduler {
     static let maxJitter: TimeInterval = 120
 
     init(settings: AppSettings? = nil,
-         stats: Stats? = nil,
          presenter: ReminderPresenter? = nil,
          clock: @escaping () -> Date = Date.init,
          idleSeconds: @escaping () -> TimeInterval = Scheduler.systemIdleSeconds,
-         frontApp: (@MainActor () -> String?)? = nil,
          jitter: (() -> TimeInterval)? = nil,
          detectBusy: (@MainActor (AppSettings) -> BusyReason?)? = nil) {
         self.settings = settings ?? .shared
-        self.stats = stats ?? .shared
         self.presenter = presenter ?? LivePresenter()
         self.clock = clock
         self.idleSeconds = idleSeconds
-        self.frontApp = frontApp ?? { Scheduler.frontmostAppID() }
         self.jitter = jitter ?? { TimeInterval.random(in: 0...Scheduler.maxJitter) }
         self.detectBusy = detectBusy ?? { Scheduler.systemBusyReason($0) }
         self.now = clock()
@@ -224,10 +223,7 @@ final class Scheduler {
     }
 
     func tick() {
-        let previous = now
         now = clock()
-        stats.rollover()
-        countActiveTime(since: previous)
 
         if let until = pausedUntil {
             guard now >= until else {
@@ -257,12 +253,16 @@ final class Scheduler {
         // Умная пауза: звонок или полноэкранное видео (проверяем раз в 3 секунды).
         tickCount += 1
         if tickCount % 3 == 0 { updateBusy() }
-        if busyReason != nil { return }
+        if busyReason != nil {
+            // Звонок после конца дня — это тоже работа: время считаем, но ничего не показываем.
+            _ = tickDayEnd(typing: false, canShow: { false })
+            return
+        }
 
         // Smart timing: пока человек печатает — даём ему закончить.
         let typing = settings.smartTiming && idle < Self.typingGrace
 
-        // Рабочий день кончился — перерывы и напоминания больше не нужны.
+        // Конец дня: если сейчас показали список, остальное ждёт следующего тика.
         if tickDayEnd(typing: typing, canShow: { true }) { return }
 
         if let nb = nextBreak {
@@ -279,7 +279,7 @@ final class Scheduler {
             if lead > 0, warnedFor != nb, left <= lead {
                 warnedFor = nb
                 presenter.showWarning(breakAt: nb,
-                                      onSnooze: { [weak self] m in self?.snoozeBreak(minutes: m) },
+                                      onSnooze: { [weak self] m in self?.postponeBreak(minutes: m, fromWarning: true) },
                                       onStartNow: { [weak self] in self?.startBreak() })
             }
         }
@@ -327,13 +327,12 @@ final class Scheduler {
 
     // MARK: - Действия
 
-    /// Показать напоминание или набор и записать в статистику.
-    func show(_ item: ScheduledItem, countInStats: Bool = true) {
+    /// Показать напоминание или набор.
+    func show(_ item: ScheduledItem) {
         guard !onBreak, !presenter.isShowingNudge, !item.members.isEmpty else { return }
         lastOverlay = clock()
         presenter.showNudge(item.members, duration: TimeInterval(item.duration ?? settings.nudgeDuration))
         presenter.playSound(item.sound)
-        if countInStats { item.members.forEach { stats.add($0.id) } }
     }
 
     /// «Напомнить сейчас» из меню — показывает и перезапускает таймер.
@@ -345,13 +344,13 @@ final class Scheduler {
 
     func preview(_ reminder: Reminder) {
         show(ScheduledItem(id: reminder.id, title: reminder.displayTitle, interval: reminder.interval,
-                           sound: reminder.sound, members: [reminder], isSet: false), countInStats: false)
+                           sound: reminder.sound, members: [reminder], isSet: false))
     }
 
     func preview(_ set: ReminderSet) {
         let members = set.reminderIDs.compactMap { id in settings.reminders.first { $0.id == id } }
         show(ScheduledItem(id: set.id, title: set.name, interval: set.interval, sound: set.sound,
-                           members: members, isSet: true, duration: set.shownFor), countInStats: false)
+                           members: members, isSet: true, duration: set.shownFor))
     }
 
     func startBreak() {
@@ -369,15 +368,10 @@ final class Scheduler {
         switch outcome {
         case .finished:
             presenter.playSound(settings.breakEndSound)
-            stats.commitBreak()
-            stats.addBreak()
             resetAll()
         case .skipped:
-            stats.dropBreak()
-            stats.addSkip()
             resetAll()
         case .snoozed(let minutes):
-            stats.dropBreak()
             snoozeBreak(minutes: minutes)
             resetReminders()
         }
@@ -395,43 +389,16 @@ final class Scheduler {
         presenter.hideHints()
         nextBreak = clock().addingTimeInterval(TimeInterval(minutes * 60))
         warnedFor = nil
-        stats.addPostpone()
     }
 
-    /// «+N мин» из трея: перерыв ещё не скоро, поэтому прибавляем к его времени, а не к «сейчас».
-    func postponeBreak(minutes: Int) {
+    /// «+N мин» из трея или с плашки: прибавляем к оставшемуся времени, а не к «сейчас» (0:53 → 1:53).
+    /// С плашки — второй раз её для этого перерыва не показываем: человек её уже видел.
+    func postponeBreak(minutes: Int, fromWarning: Bool = false) {
         guard let nb = nextBreak else { return }
         presenter.hideHints()
-        nextBreak = max(nb, clock()).addingTimeInterval(TimeInterval(minutes * 60))
-        warnedFor = nil
-        stats.addPostpone()
-    }
-
-    /// Время за компьютером: считаем секунды между тиками, пока человек не ушёл (порог — настройка простоя).
-    /// Сон и долгие разрывы (больше 5 с) не считаем.
-    private func countActiveTime(since previous: Date) {
-        guard !isSuspended else { return }
-        if onBreak { stats.markBreak(); return }   // отрезок станет «перерывом», только если перерыв закончат
-        // Тот же порог, что и для «тебя нет за компьютером»: чтение и видео без касаний тоже считаются.
-        guard idleSeconds() < TimeInterval(settings.idleMinutes * 60) else {
-            stats.endWorkStretch()
-            return
-        }
-        let delta = now.timeIntervalSince(previous)
-        guard delta > 0 else { return }
-        guard delta <= 5 else {
-            // Долгий разрыв (сон, зависание) — отрезок работы закончился.
-            stats.endWorkStretch()
-            return
-        }
-        stats.addActive(Int(delta.rounded()), app: frontApp())
-    }
-
-    /// Bundle id приложения впереди (сам Pinok не считаем).
-    static func frontmostAppID() -> String? {
-        guard let id = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
-              id != Bundle.main.bundleIdentifier else { return nil }
-        return id
+        let moved = max(nb, clock()).addingTimeInterval(TimeInterval(minutes * 60))
+        nextBreak = moved
+        warnedFor = fromWarning ? moved : nil
     }
 
     func pause(for interval: TimeInterval) {
@@ -461,14 +428,19 @@ final class Scheduler {
                         second: 0, of: date)
     }
 
-    /// Сегодня рабочий день уже закрыт («Закончить день» или «Пропустить сегодня»).
+    /// Сегодня конец дня пропустили: экран больше не показываем до завтра.
     var isDayClosed: Bool {
         settings.dayEndClosedOn.map { Calendar.current.isDate($0, inSameDayAs: now) } ?? false
     }
 
-    /// Ближайший конец рабочего дня сегодня — для панели. nil, если он уже прошёл или закрыт.
+    /// Сегодня нажали «Закончить день». Таймеры идут, а список вернётся, если человек работает дальше.
+    var isDayEnded: Bool {
+        settings.dayEndEndedOn.map { Calendar.current.isDate($0, inSameDayAs: now) } ?? false
+    }
+
+    /// Ближайший конец рабочего дня сегодня — для панели. nil, если он уже прошёл или день закрыт.
     var upcomingDayEnd: Date? {
-        guard !isDayClosed, let end = todayDayEnd, end > now else { return nil }
+        guard !isDayClosed, !isDayEnded, let end = todayDayEnd, end > now else { return nil }
         return end
     }
 
@@ -476,6 +448,11 @@ final class Scheduler {
     var todayDayEnd: Date? {
         guard let planned = dayEndDate(on: now) else { return nil }
         return dayEndOverride ?? planned
+    }
+
+    /// Через сколько минут работы список вернётся (после «Закончить день»). Для панели.
+    var minutesToNextDayEndList: Int {
+        max(1, Int(((Self.dayEndRepeat - workAfterEnd) / 60).rounded(.up)))
     }
 
     private var dayEndWarnings: [Int] {
@@ -490,23 +467,42 @@ final class Scheduler {
         dayEndShowAgainAt = nil
         dayEndSession = nil
         dayEndOverride = nil
+        workAfterEnd = 0
     }
 
-    /// Предупреждения и экран конца дня. Возвращает true, если рабочий день уже кончился.
+    /// Предупреждения и экран конца дня. Возвращает true, если в этот тик показали список.
     /// `canShow` проверяем только когда есть что показать (в паузе это проверка звонка).
     private func tickDayEnd(typing: Bool, canShow: () -> Bool) -> Bool {
         dayEndNewDayIfNeeded()
+        // Время работы между тиками. Простой и сон сюда не попадают: тогда тиков нет, а разрыв больше 5 с.
+        let delta = dayEndLastTick.map { min(5, max(0, now.timeIntervalSince($0))) } ?? 0
+        dayEndLastTick = now
         guard !isDayClosed, let end = todayDayEnd else {
             if dayEndActive { dayEndActive = false }
             return false
         }
+
+        // День закончили, а человек всё ещё работает: напоминаем каждые 30 минут работы.
+        if isDayEnded {
+            if dayEndActive { dayEndActive = false }
+            workAfterEnd += delta
+            let again = dayEndShowAgainAt.map { now >= $0 } ?? false
+            let over = workAfterEnd - Self.dayEndRepeat
+            guard again || over >= 0 else { return false }
+            if typing, over < Self.maxBreakDefer { return false }
+            guard canShow() else { return false }
+            showDayEnd()
+            return true
+        }
+
         let left = end.timeIntervalSince(now)
         if left <= 0 {
             if !dayEndActive { dayEndActive = true }
             let waitOver = dayEndShowAgainAt.map { now >= $0 } ?? true
             // Человек печатает — даём закончить фразу, как перед перерывом.
             let letFinish = typing && -left < Self.maxBreakDefer
-            if waitOver, !letFinish, canShow() { showDayEnd() }
+            guard waitOver, !letFinish, canShow() else { return false }
+            showDayEnd()
             return true
         }
         if dayEndActive { dayEndActive = false }
@@ -527,9 +523,11 @@ final class Scheduler {
         guard !onDayEnd, !onBreak else { return }
         presenter.hideHints()
         let session = dayEndSession ?? DayEndSession(items: settings.dayEndItems)
+        session.afterEnd = isDayEnded
         dayEndSession = session
         onDayEnd = true
-        dayEndActive = true
+        dayEndShowAgainAt = nil
+        if isDayEnded { workAfterEnd = 0 } else { dayEndActive = true }
         presenter.playSound(settings.dayEndSound)
         presenter.showDayEnd(session, demo: false) { [weak self] outcome in
             self?.dayEndFinished(outcome)
@@ -542,38 +540,40 @@ final class Scheduler {
         case .later:
             dayEndShowAgainAt = clock().addingTimeInterval(TimeInterval(max(1, settings.dayEndSnooze) * 60))
         case .done:
-            closeDay()
-            pauseUntilTomorrow()
+            settings.dayEndEndedOn = clock()
+            workAfterEnd = 0
+            dayEndActive = false
+            dayEndShowAgainAt = nil
         case .skipped:
             closeDay()
-            resetAll()
         case .postponed(let minutes):
             postponeDayEnd(minutes: minutes)
         }
+        // Пока список был на экране, перерыв мог подойти. Не показываем его сразу же — даём полминуты.
+        graceAfterBusy()
     }
 
     /// «+N мин»: очень занят. До конца дня — прибавляем к его времени, после — к «сейчас».
-    /// Пока ждём, напоминания и перерывы идут как обычно. Последнее предупреждение придёт снова.
+    /// Если день уже закончили — список вернётся через N минут работы. Последнее предупреждение придёт снова.
     func postponeDayEnd(minutes: Int) {
         guard !isDayClosed, let end = todayDayEnd else { return }
         now = clock()
-        let wasOver = end <= now
+        dayEndShowAgainAt = nil
+        if isDayEnded {
+            workAfterEnd = Self.dayEndRepeat - TimeInterval(minutes * 60)
+            return
+        }
         let newEnd = max(end, now).addingTimeInterval(TimeInterval(minutes * 60))
         dayEndOverride = newEnd
-        dayEndShowAgainAt = nil
         dayEndActive = false
         let left = newEnd.timeIntervalSince(now)
         dayEndWarned = Set(dayEndWarnings.filter { left <= TimeInterval($0 * 60) })
-        // Пока список был на экране, перерывы стояли — начинаем их отсчёт заново.
-        if wasOver { resetAll() }
     }
 
-    /// «Пропустить сегодня» с плашки или из панели.
+    /// «Пропустить сегодня» с плашки, экрана или из панели. До завтра о конце дня молчим.
     func skipDayEnd() {
         guard !isDayClosed, !onDayEnd else { return }
-        let wasOver = dayEndActive
         closeDay()
-        if wasOver { resetAll() }
     }
 
     private func closeDay() {
@@ -607,7 +607,7 @@ final class Scheduler {
             return
         }
         let left = end.timeIntervalSince(now)
-        if left <= 0, !isDayClosed {
+        if left <= 0, !isDayClosed, !isDayEnded {
             settings.dayEndClosedOn = now
             dayEndSession = nil
         }
@@ -645,8 +645,6 @@ final class Scheduler {
     func suspend(_ reason: SuspendReason = .sleep) {
         suspendReasons.insert(reason)
         presenter.hideHints()
-        stats.endWorkStretch()
-        stats.save()
     }
 
     /// Продолжаем только когда ушли все причины: экран проснулся на экране входа — ещё рано.
@@ -681,7 +679,7 @@ final class Scheduler {
 
     /// Текст рядом с иконкой в трее: минуты до ближайшего события.
     var menuBarText: String? {
-        if isHolding || isSuspended || isIdle || dayEndActive { return nil }
+        if isHolding || isSuspended || isIdle { return nil }
         if onBreak { return t("break") }
         // Только до перерыва: короткие напоминания идут без отсчёта.
         guard settings.breakEnabled, let nb = nextBreak else { return nil }

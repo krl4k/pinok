@@ -20,14 +20,11 @@ Pinok is a small Mac app in the menu bar. It tells you to sit up straight, keep 
 
 ## The menu bar panel
 
-- **Now** shows the time to the next break. You can start the break now, move it, or pause the app for 1, 5 or 30 minutes.
-- **Stats** shows your day: the time at the computer, work and breaks on a time line, and the apps that you used most.
+The panel shows the time to the next break. You can start the break now, move it, or pause the app for 1, 5 or 30 minutes. In the last hour of the workday, it also shows the end time.
 
-The app counts the time only on your Mac. It does not record the screen.
+Pinok does not keep statistics. It does not count your work and it does not record the screen.
 
-| Now | Stats |
-|---|---|
-| ![The Now tab](docs/menu-panel.png) | ![The Stats tab](docs/menu-stats.png) |
+![The menu bar panel](docs/menu-panel.png)
 
 ## Install
 

@@ -28,6 +28,8 @@ func dayEndPostponeLabel(_ minutes: Int) -> String {
 final class DayEndSession {
     let items: [String]
     private(set) var done: Set<Int> = []
+    /// День уже закончили, а человек всё ещё работает — экран говорит об этом.
+    var afterEnd = false
 
     /// Пустые пункты не показываем.
     init(items: [String]) {
@@ -168,10 +170,11 @@ struct DayEndView: View {
                 .font(.system(size: 46))
                 .symbolRenderingMode(.multicolor)
 
-            Text(t("The workday is over"))
+            Text(session.afterEnd ? t("Time to stop work") : t("The workday is over"))
                 .font(.system(size: 34, weight: .semibold, design: .rounded))
 
-            Text(t("Do these steps. Then stop work."))
+            Text(session.afterEnd ? t("You still work after the end of the day. Do these steps. Then stop.")
+                                  : t("Do these steps. Then stop work."))
                 .font(.system(size: 18, design: .rounded))
                 .foregroundStyle(.white.opacity(0.8))
 
@@ -198,13 +201,11 @@ struct DayEndView: View {
                     Label(t("Do the steps"), systemImage: "pencil.and.list.clipboard")
                 }
                 .buttonStyle(PillButtonStyle(prominent: !session.allDone, large: true))
-                Button {
-                    Haptics.rhythm(.strong, count: 2, interval: 0.12)
-                    onEnd()
-                } label: {
-                    Label(t("End the day"), systemImage: session.allDone ? "checkmark" : "moon.fill")
-                }
-                .buttonStyle(PillButtonStyle(prominent: session.allDone, large: true))
+                // Закончить день — только удержанием: случайный клик не закроет день.
+                HoldToConfirmButton(title: t("End the day"),
+                                    symbol: session.allDone ? "checkmark" : "moon.fill",
+                                    prominent: session.allDone,
+                                    action: onEnd)
             }
             .padding(.top, 14)
             .animation(.snappy, value: session.allDone)
@@ -239,6 +240,66 @@ struct DayEndView: View {
         }
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.25), radius: 10)
+    }
+}
+
+/// Кнопка, которую надо зажать: пока держишь, она заполняется слева направо.
+/// Отпустил раньше — заливка уходит назад, ничего не происходит.
+struct HoldToConfirmButton: View {
+    let title: String
+    let symbol: String
+    var prominent = false
+    var duration: Double = 1.5
+    let action: () -> Void
+
+    @State private var progress: CGFloat = 0
+    @State private var pressing = false
+    @State private var fired = false
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Label(title, systemImage: symbol)
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+            Text(t("Click and hold"))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .opacity(0.7)
+        }
+        .foregroundStyle(.white)
+        .frame(minWidth: 200)
+        .padding(.horizontal, 30)
+        .padding(.vertical, 10)
+        .background {
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Rectangle().fill(.white.opacity(prominent ? 0.28 : 0.14))
+                    Rectangle().fill(.white.opacity(0.42)).frame(width: g.size.width * progress)
+                }
+            }
+            .clipShape(Capsule())
+        }
+        .overlay(Capsule().strokeBorder(.white.opacity(pressing ? 0.5 : 0.22), lineWidth: 1))
+        .contentShape(Capsule())
+        .scaleEffect(pressing ? 0.97 : 1)
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: pressing)
+        .onLongPressGesture(minimumDuration: duration, maximumDistance: 60) {
+            fired = true
+            Haptics.rhythm(.strong, count: 2, interval: 0.12)
+            action()
+        } onPressingChanged: { isPressing in
+            pressing = isPressing
+            if isPressing {
+                fired = false
+                Haptics.play(.tap)
+                withAnimation(.linear(duration: duration)) { progress = 1 }
+            } else if !fired {
+                withAnimation(.easeOut(duration: 0.3)) { progress = 0 }
+            }
+        }
+        // VoiceOver не умеет «держать» — для него обычное действие.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { action() }
     }
 }
 
@@ -381,6 +442,12 @@ struct DayEndWarningView: View {
     DayEndView(session: session, isPrimary: true, demo: false, snoozeMinutes: 5,
                backdrop: .gradient(BreakGradient.sunset.colors), onEnd: {}, onLater: {}, onSkip: {},
                onPostpone: { _ in })
+}
+
+#Preview("Hold button", traits: .fixedLayout(width: 400, height: 160)) {
+    HoldToConfirmButton(title: "End the day", symbol: "moon.fill", action: {})
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(LinearGradient(colors: BreakGradient.sunset.colors, startPoint: .top, endPoint: .bottom))
 }
 
 #Preview("Day end warning", traits: .fixedLayout(width: 720, height: 90)) {

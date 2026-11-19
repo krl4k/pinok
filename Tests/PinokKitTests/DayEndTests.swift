@@ -19,6 +19,7 @@ struct DayEndTests {
         h.settings.dayEndTime = startMinutes + minutes
         h.settings.dayEndEnabled = true
         h.settings.dayEndClosedOn = nil
+        h.settings.dayEndEndedOn = nil
         h.reset()
         return h
     }
@@ -68,30 +69,79 @@ struct DayEndTests {
         #expect(session.done == [0])
     }
 
-    @Test func breaksAndRemindersWaitAfterTheEnd() {
+    @Test func remindersAndBreaksContinueAfterTheEnd() {
         let h = harness()
         h.settings.reminders = [SchedulerHarness.reminder("Posture", every: 10)]
         h.settings.breakEnabled = true
         h.settings.breakInterval = 70
+        h.settings.dayEndSnooze = 15
         h.reset()
         h.tick(at: 3600)
         h.presenter.dayEnds[0].completion(.later)
         let nudges = h.presenter.nudges.count
         for s in stride(from: 3601.0, to: 3600 + 4 * 60, by: 1) { h.tick(at: s) }
-        #expect(h.presenter.nudges.count == nudges)
-        #expect(h.presenter.breaks.isEmpty)
-        #expect(h.scheduler.menuBarText == nil)
+        #expect(h.presenter.nudges.count == nudges + 1)
+        #expect(h.scheduler.menuBarText != nil)
+        h.tick(at: 70 * 60)
+        #expect(h.presenter.breaks.count == 1)
     }
 
-    @Test func endTheDayPausesUntilTomorrow() {
+    @Test func endTheDayKeepsTimersAndShowsTheListAgainAfter30MinOfWork() {
+        let h = harness()
+        h.settings.reminders = [SchedulerHarness.reminder("Posture", every: 10)]
+        h.reset()
+        h.tick(at: 3600)
+        h.presenter.dayEnds[0].session.toggle(1)
+        h.presenter.dayEnds[0].completion(.done)
+        #expect(h.scheduler.isDayEnded)
+        #expect(!h.scheduler.isPaused)
+        #expect(!h.scheduler.dayEndActive)
+
+        // Работаем дальше: напоминания идут, список вернётся после 30 минут работы.
+        let nudges = h.presenter.nudges.count
+        for s in 1...(30 * 60 - 1) { h.tick(at: 3600 + TimeInterval(s)) }
+        #expect(h.presenter.nudges.count > nudges)
+        #expect(h.presenter.dayEnds.count == 1)
+        h.tick(at: 3600 + 30 * 60)
+        #expect(h.presenter.dayEnds.count == 2)
+        #expect(h.presenter.dayEnds[1].session.afterEnd)
+        #expect(h.presenter.dayEnds[1].session.done == [1])
+    }
+
+    @Test func timeAwayDoesNotCountAsWorkAfterTheEnd() {
         let h = harness()
         h.tick(at: 3600)
         h.presenter.dayEnds[0].completion(.done)
-        #expect(h.scheduler.isDayClosed)
-        #expect(!h.scheduler.dayEndActive)
-        let cal = Calendar.current
-        #expect(h.scheduler.pausedUntil == cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: h.at(3600))))
-        h.tick(at: 3600 + 600)
+        for s in 1...(10 * 60) { h.tick(at: 3600 + TimeInterval(s)) }
+        h.idle = 400                                   // ушёл на 2 часа
+        for s in stride(from: 10 * 60 + 1, through: 130 * 60, by: 60) { h.tick(at: 3600 + TimeInterval(s)) }
+        h.idle = 5
+        #expect(h.presenter.dayEnds.count == 1)
+        for s in (130 * 60 + 1)...(149 * 60) { h.tick(at: 3600 + TimeInterval(s)) }
+        #expect(h.presenter.dayEnds.count == 1)        // 10 + 19 минут работы — ещё рано
+        for s in (149 * 60 + 1)...(151 * 60) { h.tick(at: 3600 + TimeInterval(s)) }
+        #expect(h.presenter.dayEnds.count == 2)
+    }
+
+    @Test func postponeAfterEndingTheDayCountsMinutesOfWork() {
+        let h = harness()
+        h.tick(at: 3600)
+        h.presenter.dayEnds[0].completion(.done)
+        h.tick(at: 3601)
+        h.scheduler.postponeDayEnd(minutes: 60)
+        #expect(h.scheduler.minutesToNextDayEndList == 60)
+        for s in 2...(59 * 60) { h.tick(at: 3600 + TimeInterval(s)) }
+        #expect(h.presenter.dayEnds.count == 1)
+        for s in (59 * 60 + 1)...(61 * 60) { h.tick(at: 3600 + TimeInterval(s)) }
+        #expect(h.presenter.dayEnds.count == 2)
+    }
+
+    @Test func skipAfterEndingTheDayStopsTheList() {
+        let h = harness()
+        h.tick(at: 3600)
+        h.presenter.dayEnds[0].completion(.done)
+        h.scheduler.skipDayEnd()
+        for s in 1...(40 * 60) { h.tick(at: 3600 + TimeInterval(s)) }
         #expect(h.presenter.dayEnds.count == 1)
     }
 
@@ -126,7 +176,7 @@ struct DayEndTests {
         #expect(h.presenter.dayEnds.count == 1)
     }
 
-    @Test func postponeFromTheListStartsFromNowAndRestartsBreaks() {
+    @Test func postponeFromTheListStartsFromNow() {
         let h = harness()
         h.settings.breakEnabled = true
         h.settings.breakInterval = 70
@@ -137,7 +187,7 @@ struct DayEndTests {
         #expect(!h.scheduler.onDayEnd)
         #expect(!h.scheduler.dayEndActive)
         #expect(h.scheduler.upcomingDayEnd == h.at(3600 + 120 + 600))
-        #expect(h.scheduler.nextBreak == h.at(3600 + 120 + 70 * 60))
+        #expect(h.scheduler.nextBreak == h.at(70 * 60))
         h.tick(at: 3600 + 120 + 300)
         #expect(h.presenter.dayEndWarnings.count == 1)
         h.tick(at: 3600 + 120 + 600)

@@ -17,13 +17,13 @@ struct SchedulerTests {
 
         h.tick(at: 1199)
         #expect(h.presenter.nudges.isEmpty)
-        #expect(h.stats.count(for: r.id) == 0)
+        #expect(h.presenter.shownCount(r.id) == 0)
 
         h.tick(at: 1200)
         #expect(h.presenter.nudges.count == 1)
         #expect(h.presenter.nudges.first?.map(\.id) == [r.id])
         #expect(h.presenter.sounds == ["melody.rise"])
-        #expect(h.stats.count(for: r.id) == 1)
+        #expect(h.presenter.shownCount(r.id) == 1)
         #expect(h.scheduler.nextFire[r.id] == h.at(2400))
     }
 
@@ -34,7 +34,7 @@ struct SchedulerTests {
         h.reset()
         h.run(seconds: 3600)
         #expect(h.presenter.nudges.count == 3)
-        #expect(h.stats.count(for: r.id) == 3)
+        #expect(h.presenter.shownCount(r.id) == 3)
     }
 
     @Test func disabledReminderIsNotScheduled() {
@@ -72,8 +72,8 @@ struct SchedulerTests {
         h.clock.now = second
         h.scheduler.tick()
         #expect(h.presenter.nudges.count == 2)
-        #expect(h.stats.count(for: a.id) == 1)
-        #expect(h.stats.count(for: b.id) == 1)
+        #expect(h.presenter.shownCount(a.id) == 1)
+        #expect(h.presenter.shownCount(b.id) == 1)
     }
 
     @Test func refireKeepsTheGap() {
@@ -222,7 +222,7 @@ struct SchedulerTests {
         // В 3541 с до перерыва 59 с (< 60): напоминание не показываем.
         h.tick(at: 3541)
         #expect(h.presenter.nudges.isEmpty)
-        #expect(h.stats.count(for: r.id) == 0)
+        #expect(h.presenter.shownCount(r.id) == 0)
         #expect(h.scheduler.nextFire[r.id] == h.at(3541 + 59 * 60))
     }
 
@@ -321,7 +321,7 @@ struct SchedulerTests {
         #expect(h.presenter.breaks.count == 1)
     }
 
-    @Test func finishedBreakPlaysEndSoundCountsAndResetsAll() {
+    @Test func finishedBreakPlaysEndSoundAndResetsAll() {
         let h = SchedulerHarness()
         h.settings.breakEnabled = true
         let r = SchedulerHarness.reminder("A", every: 25)
@@ -332,12 +332,11 @@ struct SchedulerTests {
         h.presenter.breaks[0].completion(.finished)
         #expect(!h.scheduler.onBreak)
         #expect(h.presenter.sounds.last == "Hero")
-        #expect(h.stats.breaks == 1)
         #expect(h.scheduler.nextBreak == h.at(3900 + 3600))
         #expect(h.scheduler.nextFire[r.id] == h.at(3900 + 1500))
     }
 
-    @Test func skippedBreakResetsWithoutCounting() {
+    @Test func skippedBreakResetsWithoutEndSound() {
         let h = SchedulerHarness()
         h.settings.breakEnabled = true
         let r = SchedulerHarness.reminder("A", every: 25)
@@ -347,7 +346,6 @@ struct SchedulerTests {
         h.clock.now = h.at(3610)
         h.presenter.breaks[0].completion(.skipped)
         #expect(!h.scheduler.onBreak)
-        #expect(h.stats.breaks == 0)
         #expect(!h.presenter.sounds.contains("Hero"))
         #expect(h.scheduler.nextBreak == h.at(3610 + 3600))
         #expect(h.scheduler.nextFire[r.id] == h.at(3610 + 1500))
@@ -363,11 +361,26 @@ struct SchedulerTests {
         h.clock.now = h.at(3605)
         h.presenter.breaks[0].completion(.snoozed(minutes: 5))
         #expect(!h.scheduler.onBreak)
-        #expect(h.stats.breaks == 0)
         #expect(h.scheduler.nextBreak == h.at(3605 + 300))
         #expect(h.scheduler.nextFire[r.id] == h.at(3605 + 1500))
         h.tick(at: 3905)
         #expect(h.presenter.breaks.count == 2)
+    }
+
+    @Test func plusOneOnTheWarningAddsToTheTimeLeftAndDoesNotWarnAgain() {
+        let h = SchedulerHarness()
+        h.settings.breakEnabled = true
+        h.settings.breakWarning = 60
+        h.reset()
+        h.tick(at: 3547)                               // осталось 0:53
+        #expect(h.presenter.warnings.count == 1)
+        h.presenter.warningSnoozes[0](1)
+        #expect(h.scheduler.nextBreak == h.at(3600 + 60))   // 1:53, а не 1:00
+        for s in 3548...3659 { h.tick(at: TimeInterval(s)) }
+        #expect(h.presenter.warnings.count == 1)
+        #expect(h.presenter.breaks.isEmpty)
+        h.tick(at: 3660)
+        #expect(h.presenter.breaks.count == 1)
     }
 
     @Test func snoozeBreakAllowsANewWarning() {
@@ -398,7 +411,6 @@ struct SchedulerTests {
         #expect(h.presenter.breaks[0].seconds == 10)
         #expect(!h.scheduler.onBreak)
         h.presenter.breaks[0].completion(.finished)
-        #expect(h.stats.breaks == 0)
         #expect(h.presenter.sounds == ["Glass", "Hero"])
     }
 
@@ -614,9 +626,9 @@ struct SchedulerTests {
         #expect(h.presenter.nudges.count == 1)
         #expect(h.presenter.nudges[0].map(\.id) == [a.id, b.id])
         #expect(h.presenter.sounds == ["melody.calm"])
-        #expect(h.stats.count(for: a.id) == 1)
-        #expect(h.stats.count(for: b.id) == 1)
-        #expect(h.stats.count(for: set.id) == 0)
+        #expect(h.presenter.shownCount(a.id) == 1)
+        #expect(h.presenter.shownCount(b.id) == 1)
+        #expect(h.presenter.shownCount(set.id) == 0)
 
         h.tick(at: 1200)  // набор снова; A один не срабатывает
         #expect(h.presenter.nudges.count == 2)
@@ -720,7 +732,7 @@ struct SchedulerTests {
 
     // MARK: - preview / remindNow
 
-    @Test func previewShowsButDoesNotCount() {
+    @Test func previewShowsTheReminder() {
         let h = SchedulerHarness()
         let a = SchedulerHarness.reminder("A", every: 20, sound: "Tink")
         h.settings.reminders = [a]
@@ -728,12 +740,10 @@ struct SchedulerTests {
         h.scheduler.preview(a)
         #expect(h.presenter.nudges.map { $0.map(\.id) } == [[a.id]])
         #expect(h.presenter.sounds == ["Tink"])
-        #expect(h.stats.count(for: a.id) == 0)
-        #expect(h.stats.total == 0)
         #expect(h.scheduler.nextFire[a.id] == h.at(1200))
     }
 
-    @Test func previewSetShowsMembersWithoutCounting() {
+    @Test func previewSetShowsMembers() {
         let h = SchedulerHarness()
         let a = SchedulerHarness.reminder("A", every: 20)
         let b = SchedulerHarness.reminder("B", every: 20)
@@ -743,10 +753,9 @@ struct SchedulerTests {
         h.reset()
         h.scheduler.preview(set)
         #expect(h.presenter.nudges.map { $0.map(\.id) } == [[a.id, b.id]])
-        #expect(h.stats.total == 0)
     }
 
-    @Test func remindNowShowsCountsAndReschedules() {
+    @Test func remindNowShowsAndReschedules() {
         let h = SchedulerHarness()
         let a = SchedulerHarness.reminder("A", every: 20)
         h.settings.reminders = [a]
@@ -754,7 +763,7 @@ struct SchedulerTests {
         h.clock.now = h.at(700)
         h.scheduler.remindNow(a.id)
         #expect(h.presenter.nudges.count == 1)
-        #expect(h.stats.count(for: a.id) == 1)
+        #expect(h.presenter.shownCount(a.id) == 1)
         #expect(h.scheduler.nextFire[a.id] == h.at(1900))
     }
 
@@ -773,13 +782,13 @@ struct SchedulerTests {
         h.presenter.isShowingNudge = true
         h.tick(at: 1200)
         #expect(h.presenter.nudges.isEmpty)
-        #expect(h.stats.count(for: a.id) == 0)
+        #expect(h.presenter.shownCount(a.id) == 0)
         // Показ не теряется: напоминание ждёт, пока текущее закроется.
         #expect(h.scheduler.nextFire[a.id] == h.at(1200))
         h.presenter.isShowingNudge = false
         h.tick(at: 1201)
         #expect(h.presenter.nudges.count == 1)
-        #expect(h.stats.count(for: a.id) == 1)
+        #expect(h.presenter.shownCount(a.id) == 1)
         #expect(h.scheduler.nextFire[a.id] == h.at(1201 + 1200))
     }
 
@@ -854,20 +863,7 @@ struct SchedulerTests {
         #expect(h.scheduler.menuBarText == nil)
     }
 
-    // MARK: - Статистика перерывов и время за компьютером
-
-    @Test func skippedAndSnoozedBreaksAreCounted() {
-        let h = SchedulerHarness()
-        h.settings.breakEnabled = true
-        h.reset()
-        h.tick(at: 3600)
-        h.presenter.breaks[0].completion(.snoozed(minutes: 5))
-        #expect(h.stats.postponed == 1)
-        h.tick(at: 3600 + 300)
-        h.presenter.breaks[1].completion(.skipped)
-        #expect(h.stats.skipped == 1)
-        #expect(h.stats.breaks == 0)
-    }
+    // MARK: - Отложить перерыв
 
     @Test func postponeFromPanelAddsToBreakTime() {
         let h = SchedulerHarness()
@@ -876,7 +872,6 @@ struct SchedulerTests {
         h.clock.now = h.at(600)
         h.scheduler.postponeBreak(minutes: 10)
         #expect(h.scheduler.nextBreak == h.at(3600 + 600))
-        #expect(h.stats.postponed == 1)
     }
 
     @Test func postponeWithoutBreakDoesNothing() {
@@ -884,62 +879,6 @@ struct SchedulerTests {
         h.reset()
         h.scheduler.postponeBreak(minutes: 5)
         #expect(h.scheduler.nextBreak == nil)
-        #expect(h.stats.postponed == 0)
-    }
-
-    @Test func activeTimeCountsOnlyWithRecentInput() {
-        let h = SchedulerHarness()
-        h.reset()
-        h.run(seconds: 10)
-        #expect(h.stats.activeSeconds == 10)
-        h.idle = 120              // 2 мин без касаний — ещё за компьютером (порог 5 мин)
-        h.run(seconds: 10)
-        #expect(h.stats.activeSeconds == 20)
-        h.idle = 400              // больше 5 мин — ушёл
-        h.run(seconds: 10)
-        #expect(h.stats.activeSeconds == 20)
-        h.idle = 5
-        h.advanceAndTick(600)   // сон или долгий разрыв не считаем
-        #expect(h.stats.activeSeconds == 20)
-        h.run(seconds: 3)
-        #expect(h.stats.activeSeconds == 23)
-    }
-
-    @Test func activeTimeCountsDuringPause() {
-        let h = SchedulerHarness()
-        h.reset()
-        h.scheduler.pause(for: 3600)
-        h.run(seconds: 5)
-        #expect(h.stats.activeSeconds == 5)
-    }
-
-    @Test func activeTimeGoesToFrontApp() {
-        let h = SchedulerHarness()
-        h.reset()
-        h.run(seconds: 5)
-        h.app = "com.test.browser"
-        h.run(seconds: 3)
-        h.app = nil
-        h.run(seconds: 2)
-        #expect(h.stats.appSeconds == ["com.test.editor": 5, "com.test.browser": 3])
-        #expect(h.stats.activeSeconds == 10)
-    }
-
-    @Test func breakIsMarkedOnTimelineAndAwayEndsStretch() {
-        let h = SchedulerHarness()
-        h.settings.breakEnabled = true
-        h.reset()
-        h.run(seconds: 30)
-        #expect(h.stats.longestWork == 30)
-        h.idle = 400
-        h.run(seconds: 5)
-        h.idle = 5
-        h.run(seconds: 10)
-        #expect(h.stats.longestWork == 30)
-        h.scheduler.startBreak()
-        h.run(seconds: 1)
-        h.presenter.breaks.last?.completion(.finished)
-        #expect(h.stats.slots[h.stats.currentSlot] == Stats.Slot.rest)
     }
 
     // MARK: - Исправления по ревью
@@ -953,38 +892,6 @@ struct SchedulerTests {
         #expect(h.scheduler.isSuspended)
         h.scheduler.wake(.locked)           // разблокировали
         #expect(!h.scheduler.isSuspended)
-    }
-
-    @Test func lockEndsWorkStretch() {
-        let h = SchedulerHarness()
-        h.reset()
-        h.run(seconds: 600)
-        h.scheduler.suspend(.locked)
-        h.clock.advance(3600)
-        h.scheduler.wake(.locked)
-        h.run(seconds: 600)
-        #expect(h.stats.longestWork == 600)
-    }
-
-    @Test func skippedBreakIsNotPaintedOnTimeline() {
-        let h = SchedulerHarness()
-        h.settings.breakEnabled = true
-        h.reset()
-        h.tick(at: 3600)
-        #expect(h.scheduler.onBreak)
-        h.run(seconds: 5)
-        h.presenter.breaks[0].completion(.skipped)
-        #expect(!h.stats.slots.contains(Stats.Slot.rest))
-    }
-
-    @Test func finishedBreakIsPaintedOnTimeline() {
-        let h = SchedulerHarness()
-        h.settings.breakEnabled = true
-        h.reset()
-        h.tick(at: 3600)
-        h.run(seconds: 5)
-        h.presenter.breaks[0].completion(.finished)
-        #expect(h.stats.slots.contains(Stats.Slot.rest))
     }
 
     @Test func importedZeroIntervalsAreClamped() throws {

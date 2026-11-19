@@ -12,8 +12,7 @@ struct DurationTests {
         settings.breakEnabled = false
         settings.smartTiming = false
         let presenter = FakePresenter()
-        let scheduler = Scheduler(settings: settings, stats: Stats(defaults: TestSupport.freshDefaults()),
-                                  presenter: presenter, clock: { clock.now }, idleSeconds: { 100 },
+        let scheduler = Scheduler(settings: settings, presenter: presenter, clock: { clock.now }, idleSeconds: { 100 },
                                   detectBusy: { _ in nil })
         return (scheduler, settings, presenter, clock)
     }

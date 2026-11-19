@@ -27,9 +27,14 @@ final class FakePresenter: ReminderPresenter {
     var nudgeDurations: [TimeInterval] = []
     var breaks: [(seconds: Int, demo: Bool, completion: (BreakOutcome) -> Void)] = []
     var warnings: [Date] = []
+    /// «+N мин» на плашке перед перерывом.
+    var warningSnoozes: [(Int) -> Void] = []
     var cursorCountdowns: [Date] = []
     var hideHintsCount = 0
     var sounds: [String] = []
+
+    /// Сколько раз показали это напоминание (одно или в наборе).
+    func shownCount(_ id: UUID) -> Int { nudges.filter { $0.contains { $0.id == id } }.count }
 
     func showNudge(_ reminders: [Reminder], duration: TimeInterval) {
         nudges.append(reminders)
@@ -40,6 +45,7 @@ final class FakePresenter: ReminderPresenter {
     }
     func showWarning(breakAt: Date, onSnooze: @escaping (Int) -> Void, onStartNow: @escaping () -> Void) {
         warnings.append(breakAt)
+        warningSnoozes.append(onSnooze)
     }
     func showCursorCountdown(breakAt: Date) { cursorCountdowns.append(breakAt) }
     func hideHints() { hideHintsCount += 1 }
